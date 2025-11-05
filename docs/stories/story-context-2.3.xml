@@ -1,0 +1,99 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>3</storyId>
+    <title>数据质量评估仪表盘</title>
+    <status>Ready for Review</status>
+    <generatedAt>2025-10-30T14:10:00Z</generatedAt>
+    <generator>Codex Agent</generator>
+    <sourceStoryPath>docs/stories/story-2.3.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>数据科学家</asA>
+    <iWant>在清洗后自动获得质量评估指标并定位异常样本</iWant>
+    <soThat>可以判断数据是否满足微调要求并快速修复问题</soThat>
+    <tasks><![CDATA[
+- [ ] 后端：新增质量评估任务与数据模型，串联清洗流程并写入指标、异常样本与报告文件。（AC#1, AC#3）
+  - [ ] 计算长度分布、重复率、缺失率、困惑度占位等指标，更新 `dataset_versions.stats_json.quality` 并输出 artefact。
+  - [ ] 提供查询/导出 API（summary、异常样本、报告下载），记录审计日志与 RBAC 校验。
+- [ ] 前端：实现质量评估仪表页面，支持工作空间 → 数据集 → 版本 drill-down，显示指标卡、异常样本表格与建议文案。（AC#2, AC#3）
+  - [ ] 提供报告下载与错误提示，TanStack Query 缓存数据，Vitest 覆盖主要交互。
+- [ ] 测试/DevOps：扩展 pytest fixture（模拟示例数据、确保 Celery eager），前端 Mock 下载函数避免阻塞；补文档说明指标定义与使用指南。（AC#1, AC#2, AC#3）
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 清洗完成后自动触发质量评估任务，输出包含困惑度占位、长度分布、重复率、缺失率等指标，并写入 `stats_json` 与评估报告 artefact。
+2. 质量仪表盘支持按工作空间/数据集/版本浏览指标，展示异常样本列表（drill-down），并提供评估建议；权限受 RBAC 控制。
+3. 提供质量评估报告导出（JSON/CSV），导出行为记录审计日志并与对应数据版本关联，支持历史追溯。
+    ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epic 2 – Story 2.3" section="数据质量评估仪表盘" snippet="Story 2.3 要求清洗后自动输出质量评分、支持 drill-down 与历史追溯。" />
+      <doc path="docs/PRD.md" title="PRD – 数据与语料工作台" section="Functional Requirements / Data Platform" snippet="PRD 要求上传 → 清洗 → 质量评估闭环，平台需提供质量评分与报告导出。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Flow 1：导入语料并完成数据准备" snippet="清洗完成后需要运行质量评估并在仪表盘显示指标、异常样本。" />
+      <doc path="docs/technical-decisions.md" title="技术决策记录" section="数据处理框架" snippet="质量评估同样使用 Pandas/Polars + 规则引擎，指标与 artefact 需可追踪。" />
+      <doc path="docs/implementation-readiness-report-2025-10-28.md" title="实施准备报告" section="风险与建议" snippet="提醒在 DataHub 故事中补充质量评估指标定义与审计导出策略。" />
+      <doc path="docs/stories/story-2.2.md" title="Story 2.2 Dev Notes" section="Dev Notes" snippet="清洗流水线已输出 cleaned.jsonl 与 stats_json，可作为质量评估输入。" />
+    </docs>
+    <code>
+      <artifact path="backend/app/models/dataset.py" kind="model" symbol="DatasetVersion" lines="1-220" reason="需新增质量评估任务/报告模型、扩展 stats_json。" />
+      <artifact path="backend/app/services/data_hub.py" kind="service" symbol="DataHubService" lines="1-520" reason="在此 orchestrate 质量评估任务、指标查询与导出 API。" />
+      <artifact path="backend/app/tasks/data_cleaning.py" kind="task" symbol="run_initial_cleaning" lines="1-400" reason="清洗任务完成后需调度质量评估任务，可在同文件或新任务实现。" />
+      <artifact path="backend/app/api/datasets.py" kind="api" symbol="quality endpoints" lines="1-360" reason="新增评估 summary/export 端点并复用权限。" />
+      <artifact path="backend/tests/test_datasets.py" kind="test" symbol="quality tests" lines="1-400" reason="需要新增质量评估相关 pytest 覆盖指标与导出。" />
+      <artifact path="frontend/src/app/data-hub/CleaningPipelinePage.tsx" kind="component" symbol="清洗面板" lines="1-520" reason="质量仪表延续相同信息架构，可复用查询逻辑与样式。" />
+      <artifact path="frontend/src/app/data-hub" kind="component" symbol="QualityDashboardPage.tsx" lines="new" reason="此故事要新增质量仪表页面。" />
+      <artifact path="frontend/src/lib/api.ts" kind="api-client" symbol="cleaningApi / dataHubApi" lines="180-400" reason="需扩展质量评估相关 API 封装。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">
+        <package name="fastapi" version="^0.111.0" />
+        <package name="sqlmodel" version="^0.0.21" />
+        <package name="pandas" version="^2.2.2" />
+        <package name="numpy" version="^1.26.4" />
+        <package name="alembic" version="^1.13.2" />
+      </dependency>
+      <dependency ecosystem="node">
+        <package name="react" version="^18.3.1" />
+        <package name="@tanstack/react-query" version="^5.56.2" />
+        <package name="@testing-library/react" version="^14.2.2" />
+        <package name="vitest" version="^1.6.0" />
+        <package name="chart.js" version="^4.4.4" optional="true" />
+      </dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <item>质量评估任务需幂等且可重复运行，将结果与特定 dataset_version 绑定并持久化 artefact 路径。</item>
+    <item>指标及导出需受 RBAC 控制（默认 `RoleOperation.DATA_IMPORT` 或 `EVALUATION_VIEW`），并写入审计日志 `dataset.quality.*`。</item>
+    <item>前端遵循现有深色主题与卡片样式，指标卡与表格需支持中文文案、加载/错误/空态。</item>
+    <item>报告导出应复用 artefact 目录 `/var/lib/llmft/datasets/{workspace}/{dataset}/v{n}/quality/`，并在运行完成后自动刷新仪表数据。</item>
+    <item>测试环境默认使用 SQLite + Celery eager；如引入 pandas 计算须确保本地测试不依赖外部模型或网络。</item>
+  </constraints>
+
+  <interfaces>
+    <interface name="POST /api/v1/datasets/{dataset_id}/quality/run" kind="REST endpoint" signature="POST .../quality/run" path="backend/app/api/datasets.py" />
+    <interface name="GET /api/v1/datasets/{dataset_id}/versions/{version_id}/quality/summary" kind="REST endpoint" signature="GET .../quality/summary" path="backend/app/api/datasets.py" />
+    <interface name="GET /api/v1/datasets/{dataset_id}/versions/{version_id}/quality/export" kind="REST endpoint" signature="GET .../quality/export?format=jsonl|csv" path="backend/app/api/datasets.py" />
+    <interface name="qualityApi.summary" kind="TypeScript function" signature="qualityApi.summary(datasetId, versionId)" path="frontend/src/lib/api.ts" />
+    <interface name="qualityApi.download" kind="TypeScript function" signature="qualityApi.downloadExport(datasetId, versionId, format)" path="frontend/src/lib/api.ts" />
+  </interfaces>
+
+  <tests>
+    <standards><![CDATA[
+后端使用 pytest + FastAPI TestClient 验证评估指标、异常样本与导出内容；构造小型数据集模拟重复/缺失场景。前端使用 Vitest + React Testing Library，对仪表渲染、drill-down 表格与下载按钮进行快照与交互测试。]]></standards>
+    <locations><![CDATA[
+backend/tests/test_datasets.py
+backend/tests/test_quality.py (new)
+frontend/src/app/data-hub/
+frontend/src/lib/
+    ]]></locations>
+    <ideas><![CDATA[
+- AC1：后端单测运行质量评估，断言 stats_json 内包含行数、重复率、长度分布等字段。
+- AC2：集成测试调用 summary endpoint，验证返回指标与异常样本数组；前端测试检查卡片数值与 drill-down 展示。
+- AC3：模拟导出请求，断言返回 Blob/CSV 内容、审计日志（可通过仓储或 mock）；前端测试点击下载按钮触发 createObjectURL。]]></ideas>
+  </tests>
+</story-context>

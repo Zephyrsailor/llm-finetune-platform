@@ -1,0 +1,82 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>4</epicId>
+    <storyId>2</storyId>
+    <title>自动化评估流水线</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-31T13:50:00Z</generatedAt>
+    <generator>BMAD Story Context Workflow (manual execution)</generator>
+    <sourceStoryPath>docs/stories/story-4.2.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>ML 工程师</asA>
+    <iWant>训练完成后自动运行评估并生成指标</iWant>
+    <soThat>可以快速判断模型提升效果，并在质量闸门中复用</soThat>
+    <tasks><![CDATA[
+- [ ] 后端（AC#1）：在训练完成流程中调度评估任务，确保幂等、审计与 artefact 目录落盘。
+- [ ] 后端（AC#1, AC#2）：扩展 EvaluationRunner 计算 BLEU/ROUGE-L/Exact Match/困惑度并持久化指标、报告与差异数据。
+- [ ] 后端（AC#2, AC#3）：拓展评估查询与告警 API，写入审计日志并对指标退化触发通知。
+- [ ] 前端（AC#2, AC#3）：在训练监控与评估页面呈现自动评估结果、报告入口与告警状态。
+- [ ] 测试与文档：补充 pytest/Vitest 用例覆盖成功、失败、退化场景，更新技术规格与 UX 文档描述自动化流程。
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 当训练运行进入 COMPLETED 状态时，系统自动创建评估任务，执行 BLEU、ROUGE-L、Exact Match、困惑度计算，可选默认/自定义测试集，输出 artefact 至既定目录。
+2. 评估结果（指标、报告链接、历史对比）写入数据库并通过 /v1/evaluations API 查询，同时在训练运行视图展示可追踪历史。
+3. 评估失败或指标低于阈值时触发告警与审计事件，前端给予醒目提示以便审批/部署复核。
+  ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epics" section="Story [4.2]" snippet="定义自动化评估流水线的角色、目标与三条验收标准（指标计算、结果可查询、退化告警）。" />
+      <doc path="docs/PRD.md" title="PRD" section="4. 评估与监控中心" snippet="强调评估需与训练任务联动、记录历史并作为质量闸门输入后续审批/部署流程。" />
+      <doc path="docs/architecture.md" title="Architecture" section="Epic to Architecture Mapping" snippet="列出 EvaluationRunner / ReportBuilder / FeedbackService 组件及 Evaluation Gate Pattern，建议使用 Celery/Redis 自动化调度。" />
+      <doc path="docs/tech-specs/platform-core-modules.md" title="Platform Core Modules" section="评估套件与任务" snippet="描述 evaluation_jobs 模型、默认 artefact 路径、权限校验与审计要求，是扩展自动调度与指标持久化的基础。" />
+      <doc path="docs/tech-specs/runtime-operations.md" title="Runtime Operations" section="权限矩阵与审计" snippet="定义 evaluation_view 操作、告警/通知流程及磁盘清理策略，支撑阈值告警与合规记录。" />
+      <doc path="docs/stories/story-4.1.md" title="Story 4.1" section="Completion Notes" snippet="记录已交付的评估模板、手动触发 API/UI，可直接复用基础能力并在此故事中自动化。" />
+    </docs>
+    <code>
+      <code path="backend/app/tasks/training.py" kind="task" symbol="run_training_job" lines="1-120" reason="训练任务完成时的关键钩子，新增自动调度评估逻辑的入口。" />
+      <code path="backend/app/services/evaluation.py" kind="service" symbol="EvaluationService" lines="1-360" reason="评估任务创建、指标写入与权限校验的主服务，需要扩展自动化与阈值逻辑。" />
+      <code path="backend/app/tasks/evaluation.py" kind="task" symbol="run_evaluation_job" lines="1-140" reason="执行评估指标计算与报告生成的 Celery 任务，需替换占位逻辑并落差异数据。" />
+      <code path="backend/app/services/training_monitoring.py" kind="service" symbol="TrainingMonitoringService" lines="1-220" reason="现有告警与通知机制，可扩展支持评估指标阈值告警。" />
+      <code path="frontend/src/app/training/TrainingMonitorPage.tsx" kind="component" symbol="TrainingMonitorPage" lines="1-220" reason="训练运行详情页面，需展示最新评估结果与告警提示。" />
+      <code path="frontend/src/app/evaluation/EvaluationSuitePage.tsx" kind="component" symbol="EvaluationSuitePage" lines="1-360" reason="评估任务列表 UI，需显示自动触发任务与状态字段。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">fastapi, celery, redis, sqlmodel, sacrebleu (新增), rouge-score (新增), evaluate (新增)</dependency>
+      <dependency ecosystem="frontend">@tanstack/react-query, react, tailwindcss, vitest</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints><![CDATA[
+- 评估任务必须通过 Celery/Redis 异步执行并记录审计事件，不得在请求线程同步运行；需确保自动调度具备幂等与重试策略。
+- 新增指标依赖需经过依赖管理与许可审查，统一在 backend 依赖清单中声明并固定版本。
+- 告警与权限遵循 evaluation_view 操作及现有通知渠道，敏感指标/报告下载需具备访问控制与审计日志。
+- Artefact 目录 `/var/lib/llmft/{workspace}/{project|general}/evaluations/{job_id}` 中的 `metrics.json` / `report.md` 须纳入清理策略，避免磁盘膨胀。
+  ]]></constraints>
+
+  <interfaces>
+    <interface name="create_evaluation_job" kind="REST" signature="POST /api/v1/evaluations/jobs" path="backend/app/api/evaluation.py" />
+    <interface name="list_evaluation_jobs" kind="REST" signature="GET /api/v1/evaluations/jobs?workspace_id=&amp;training_run_id=" path="backend/app/api/evaluation.py" />
+    <interface name="get_evaluation_export" kind="REST" signature="GET /api/v1/evaluations/jobs/{job_id}/export?format=markdown|json" path="backend/app/api/evaluation.py" />
+    <interface name="training_run_metrics" kind="domain-event" signature="training.run_job → evaluation.run_job (Celery chain / Redis event)" path="backend/app/tasks/training.py" />
+  </interfaces>
+
+  <tests>
+    <standards><![CDATA[后端使用 pytest + SQLModel (SQLite) 与 Celery eager 模式验证训练→评估链路、指标计算与阈值告警；前端采用 Vitest + Testing Library 覆盖训练监控/评估页面的指标渲染、警示提示与操作交互。]]></standards>
+    <locations><![CDATA[
+- backend/tests/test_training.py
+- backend/tests/test_evaluations.py
+- frontend/src/app/training/__tests__/
+- frontend/src/app/evaluation/__tests__/
+    ]]></locations>
+    <ideas><![CDATA[
+- 模拟训练完成事件，断言自动创建评估任务、指标写入与 artefact 文件生成（AC#1、AC#2）。
+- 构造指标退化场景，验证告警记录、通知触发与前端标记（AC#3）。
+- 前端测试：加载带评估指标的训练运行，验证指标表格、报告链接与失败状态展示；触发导出或重跑按钮时校验请求与提示。
+    ]]></ideas>
+  </tests>
+</story-context>

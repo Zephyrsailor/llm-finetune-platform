@@ -1,0 +1,80 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>4</epicId>
+    <storyId>3</storyId>
+    <title>报告生成与可视化</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-31T17:10:00Z</generatedAt>
+    <generator>BMAD Story Context Workflow (manual execution)</generator>
+    <sourceStoryPath>docs/stories/story-4.3.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>业务负责人</asA>
+    <iWant>在平台上获取包含指标对比与典型案例的评估报告</iWant>
+    <soThat>可以快速向干系人展示微调成效并指导后续决策</soThat>
+    <tasks><![CDATA[
+- [ ] 后端：扩展 EvaluationService/ReportBuilder 汇总指标、生成典型提升与劣化样例，并写入 artefact + 元数据以支持训练/模型链接。
+- [ ] 后端：在导出接口新增 Markdown→PDF 渲染与受控分享链接，记录审计并校验 evaluation_view 权限。
+- [ ] 前端：实现 Evaluation Report 页面（指标图表、案例列表、摘要），提供导出/分享操作并保持可访问性。
+- [ ] 前端：在训练运行与模型版本视图添加“查看报告”导航，报告页展示关联对象并支持回链。
+- [ ] 测试与文档：补充 pytest/Vitest 覆盖聚合、导出、权限与 UI 渲染，更新技术规格/UX 文档说明报告流程。
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 评估报告展示关键指标对比（BLEU/ROUGE-L/Exact Match/Perplexity）及图表，同时列出至少一组典型提升样例与一组劣化样例。
+2. 报告支持导出 Markdown、PDF 与受控分享链接（含有效期/权限校验），内容覆盖指标、案例与摘要说明。
+3. 报告与训练运行、模型版本实现双向导航并记录引用关系，确保从任一视图可回溯对应报告。
+  ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epics" section="Story [4.3]" snippet="定义报告生成与可视化的角色、目标与三条验收标准（指标对比、导出、双向链接）。" />
+      <doc path="docs/PRD.md" title="PRD" section="评估与监控中心" snippet="强调报告应支持 PDF/Markdown 导出并与训练任务关联，供业务汇报与复盘。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Screen Layout 3" snippet="Evaluation Report 页面包含指标对比图、提升/劣化案例表以及导出操作。" />
+      <doc path="docs/architecture.md" title="Architecture" section="Epic to Architecture Mapping" snippet="E4 评估与报告中心依赖 EvaluationRunner/ReportBuilder/FeedbackService，需要在现有评估域内扩展报告能力。" />
+      <doc path="docs/brainstorming-session-results-2025-10-23.md" title="Brainstorming Results" section="#3 Priority" snippet="客户最关注标准化效果验证与报告交付，要求可视化模板与案例输出。" />
+      <doc path="docs/stories/story-3.5.md" title="Story 3.5" section="Dev Notes" snippet="元数据与实验管理记录训练运行/模型版本，可复用以映射报告与实验历史。" />
+    </docs>
+    <code>
+      <code path="backend/app/services/evaluation.py" kind="service" symbol="EvaluationService" lines="1-400" reason="集中处理评估任务与 artefact，需要扩展报告聚合和链接逻辑。" />
+      <code path="backend/app/tasks/evaluation.py" kind="task" symbol="run_evaluation_job" lines="1-220" reason="生成指标与 artefact，可追加报告数据写入与案例抽取。" />
+      <code path="backend/app/api/evaluation.py" kind="api" symbol="evaluation_router" lines="1-220" reason="导出接口与评估查询入口，需要扩展报告详情/分享端点。" />
+      <code path="frontend/src/app/evaluation/EvaluationSuitePage.tsx" kind="component" symbol="EvaluationSuitePage" lines="1-440" reason="评估任务列表 UI，可导航到新报告详情页并复用数据层。" />
+      <code path="frontend/src/app/training/TrainingMonitorPage.tsx" kind="component" symbol="TrainingMonitorPage" lines="1-320" reason="训练运行视图需新增报告入口与状态展示。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">fastapi, celery, sqlmodel, weasyprint (新增 PDF 渲染)</dependency>
+      <dependency ecosystem="frontend">react, @tanstack/react-query, recharts</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints><![CDATA[
+- 报告导出必须遵循现有 RBAC（evaluation_view）与审计策略，分享链接需具备签名与有效期，防止未经授权的访问。
+- Markdown→PDF 渲染需控制执行时间与资源占用，避免阻塞请求线程；建议在 Celery 任务或后台服务中执行并缓存结果。
+- 典型案例抽取应基于已有评估结果或 artefact，若暂无法自动得出，可定义最小可行策略同时在文档记录后续改进计划。
+- 报告页面需兼顾暗色主题、无障碍文本摘要，并沿用现有图表组件以保持平台视觉一致性。
+  ]]></constraints>
+
+  <interfaces>
+    <interface name="get_evaluation_report" kind="REST" signature="GET /api/v1/evaluations/reports/{report_id}" path="backend/app/api/evaluation.py" />
+    <interface name="export_evaluation_report" kind="REST" signature="GET /api/v1/evaluations/jobs/{job_id}/export?format=markdown|pdf" path="backend/app/api/evaluation.py" />
+    <interface name="share_evaluation_report" kind="REST" signature="POST /api/v1/evaluations/reports/{report_id}/share" path="backend/app/api/evaluation.py" />
+    <interface name="training_run_report_link" kind="domain-event" signature="training_run.metadata_json.evaluation.latest_report_id" path="backend/app/services/training.py" />
+  </interfaces>
+
+  <tests>
+    <standards><![CDATA[后端使用 pytest + Celery eager 验证报告聚合、导出与权限；前端采用 Vitest + Testing Library 验证 UI 渲染、导出交互与导航链接；PDF 生成需增加回归用例确保模板稳定。]]></standards>
+    <locations><![CDATA[
+- backend/tests/test_evaluations.py
+- backend/tests/test_reports.py (新增)
+- frontend/src/app/evaluation/__tests__/
+- frontend/src/app/training/__tests__/
+    ]]></locations>
+    <ideas><![CDATA[
+- 模拟含基线/差异的评估任务，断言报告聚合输出的指标、案例列表与训练/模型关联字段。
+- 调用导出接口生成 Markdown/PDF，验证文件内容、权限失败场景与分享链接有效期过期处理。
+- 前端对 Evaluation Report 页面执行快照与交互测试，确保导出按钮、案例展开与导航回链正常工作。]]></ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,80 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>4</storyId>
+    <title>项目总览仪表盘（基础版）</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-29</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-1.4.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>项目负责人</asA>
+    <iWant>能够查看包含数据、训练、评估、部署等环节状态的项目总览仪表盘</iWant>
+    <soThat>及时了解进度、发现瓶颈并协调团队资源</soThat>
+    <tasks><![CDATA[
+- 后端：实现 `DashboardService` 与 `GET /api/v1/dashboard/summary` 接口，聚合四个环节状态并返回负责人与时间戳（AC#1）。
+  - 编写 `backend/tests/test_dashboard.py` 覆盖无项目/多项目、工作空间过滤等情形（AC#1，AC#3）。
+- 后端：在服务层返回 `planned_metrics` 占位字段，预留 KPI 文案与结构（AC#2）。
+- 前端：在 `DashboardPage` 渲染状态卡片、KPI 占位和加载/空状态，添加工作空间选择器（AC#1，AC#2，AC#3）。
+  - 编写 `DashboardPage.test.tsx` 校验筛选参数、卡片渲染与权限提示（AC#1，AC#3）。
+- 权限与缓存：复用 `PermissionService` 校验访问权限，按工作空间过滤数据；为后续 Redis Stream 刷新预留 Hook（AC#1，AC#3）。
+- 文档：更新 tech-spec 与 UX 规范，记录仪表盘结构与后续 KPI 对接计划（AC#2）。
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 仪表盘按数据导入、训练、评估、部署四个环节展示状态和值班负责人，允许引用既有任务或日志来源。[docs/epics.md]
+2. 每个环节提供 KPI 占位组件（数据量、训练轮次、评估得分等），即使数据暂缺也需给出布局与说明，供以后串接真实指标。[docs/epics.md; docs/PRD.md]
+3. 仪表盘支持按工作空间过滤，并遵守角色权限：仅展示当前账号有权限的工作空间及指标视图。[docs/epics.md; docs/architecture.md]
+  ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epic 1 – Story 1.4" section="Story [1.4]: 项目总览仪表盘（基础版）" snippet="定义了基础仪表盘需覆盖数据、训练、评估、部署四个环节，并展示负责人与状态，同时要求后续可扩展 KPI 与工作空间过滤能力。" />
+      <doc path="docs/PRD.md" title="PRD – User Interface Design Goals" section="仪表盘展示关键指标" snippet="界面层要求仪表盘同时提供关键指标、图表与文本说明，并支持暗/亮模式及多语言切换，为后续迭代预留指标出口。" />
+      <doc path="docs/architecture.md" title="Architecture – Epic to Architecture Mapping" section="Async Event Hub Pattern" snippet="提出使用 Redis Stream 将训练、评估、部署事件广播给仪表盘与通知中心，确保状态更新解耦，同时强调前端采用 React + TanStack Query 组合。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Spacing & Responsive Patterns" snippet="定义仪表盘卡片的排版、响应式适配与可访问性要求：桌面采用 12 栅格布局，移动端改为纵向卡片，并需满足 WCAG 2.1 AA 标准。" />
+    </docs>
+    <code>
+      <artifact path="frontend/src/app/dashboard/DashboardPage.tsx" kind="component" symbol="DashboardPage" lines="1-40" reason="现有仪表盘占位组件，需在此扩展状态卡片、KPI 占位和工作空间筛选 UI。" />
+      <artifact path="frontend/src/lib/api.ts" kind="api-client" symbol="workspaceApi" lines="118-194" reason="集中管理前端 API 封装，应在此新增 `dashboardApi.summary` 方法供仪表盘调用。" />
+      <artifact path="backend/app/api/router.py" kind="router" symbol="api_router.include_router" lines="1-40" reason="FastAPI 总路由，目前仅挂载 auth/workspaces，需要在此注册新的 dashboard 路由。" />
+      <artifact path="backend/app/services/permissions.py" kind="service" symbol="PermissionService.require_operation" lines="13-58" reason="提供工作空间粒度的权限校验逻辑，仪表盘接口需复用以限制只读访问。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">
+        <package name="fastapi" version="^0.111.0" />
+        <package name="sqlmodel" version="^0.0.21" />
+        <package name="redis" version="^5.0.7" />
+      </dependency>
+      <dependency ecosystem="node">
+        <package name="react" version="^18.3.1" />
+        <package name="@tanstack/react-query" version="^5.56.2" />
+        <package name="react-router-dom" version="^6.25.1" />
+        <package name="@testing-library/react" version="^14.2.2" />
+      </dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <item>后端遵循 Domain Service + Repository 模式，新增 `DashboardService` 应放在 `app/services`，通过 repository 聚合状态并在 API 层暴露。</item>
+    <item>接口必须使用 `PermissionService.require_operation(... RoleOperation.EVALUATION_VIEW)` 校验权限，并以工作空间 ID 过滤结果。</item>
+    <item>遵循 Async Event Hub 设计：当前故事可先返回静态聚合数据，但需保留 Redis Stream 订阅入口以支持后续实时刷新。</item>
+    <item>前端遵循 UX 规格的响应式布局和可访问性要求，卡片排版需兼容桌面与移动端。</item>
+  </constraints>
+  <interfaces>
+    <interface name="GET /api/v1/dashboard/summary" kind="REST endpoint" signature="GET /api/v1/dashboard/summary?workspace_id={id}" path="backend/app/api/dashboard.py" />
+    <interface name="Dashboard summary query" kind="TypeScript function" signature="dashboardApi.summary({ workspaceId }): Promise&lt;DashboardSummary&gt;" path="frontend/src/lib/api.ts" />
+  </interfaces>
+  <tests>
+    <standards>后端使用 Pytest + FastAPI TestClient 覆盖 REST 接口；前端使用 Vitest + React Testing Library 结合 jsdom 运行组件测试；整体遵循 docs/Python编码规范与 Tailwind/WCAG 指南。</standards>
+    <locations>backend/tests/, frontend/src/app/__tests__/</locations>
+    <ideas>
+      <idea>AC1: 模拟不同工作空间数据集，验证 summary API 返回状态标签与负责人信息正确。</idea>
+      <idea>AC2: 断言响应体中的 `planned_metrics` 字段包含预期占位描述，并在前端渲染文案。</idea>
+      <idea>AC3: 前端测试切换工作空间时 query key 与请求参数更新，同时对无权限场景渲染提示。</idea>
+    </ideas>
+  </tests>
+</story-context>

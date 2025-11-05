@@ -1,0 +1,231 @@
+<?xml version="1.0"?>
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1.2</storyId>
+    <title>工作空间与项目创建流程</title>
+    <status>Ready</status>
+    <generatedAt>2025-10-29</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-1.2.md</sourceStoryPath>
+  </metadata>
+  <story>
+    <asA>平台管理员</asA>
+    <iWant>能够创建、编辑和归档工作空间，并在工作空间下初始化项目模板</iWant>
+    <soThat>内部与客户团队可以在隔离环境中快速启动微调项目，同时保持权限边界清晰</soThat>
+    <tasks>
+- [ ] 需求梳理与数据模型设计（AC#1, AC#2）  
+  - [ ] 定义 `workspace` 与 `project` 数据模型（含状态、关联关系、归档字段），补充 Alembic 迁移。[参考: docs/architecture.md#144]  
+  - [ ] 更新技术文档描述工作空间→项目关系及目录结构约定。
+- [ ] 后端 API 实现（AC#1-AC#3）  
+  - [ ] 在 `backend/app/api` 内新增工作空间与项目管理路由（创建、更新、归档、列表、详情）。  
+  - [ ] 在服务层实现默认目录/文档生成逻辑，并保障事务一致性。  
+  - [ ] 新增权限校验：仅工作空间成员和管理员可访问，未加入的用户收到 403。  
+  - [ ] 补充 Pytest 用例覆盖正向/异常路径及权限限制。
+- [ ] 前端界面与交互（AC#1-AC#3）  
+  - [ ] 在前端新增工作空间管理页面：列表、创建、归档状态切换，以及项目初始化表单。  
+  - [ ] 创建项目时展示默认目录生成结果或成功提示，并引导跳转到项目概览。  
+  - [ ] 使用 React Testing Library 为主要表单与权限提示编写测试。
+- [ ] 权限与审计补充（AC#3）  
+  - [ ] 复用 Story 1.1 的权限体系，在相关 API 中记录审计日志：创建/归档/访问。  
+  - [ ] 更新运维/操作文档，说明工作空间隔离与日志查看方式。  
+  - [ ] 与后续 Story 1.3（角色矩阵）对齐角色定义，预留角色扩展点。
+  </tasks>
+  </story>
+  <acceptanceCriteria>
+1. 支持创建、编辑、归档工作空间，项目必须绑定到具体工作空间，确保工作空间生命周期与项目一致。[来源: docs/epics.md]  
+2. 新项目创建时自动初始化默认目录结构与占位文档（例如 `docs/`, `datasets/`, `pipelines/`），便于团队即刻开始配置。[来源: docs/epics.md; docs/architecture.md#144]  
+3. 权限校验确保非成员无法访问或操作对应工作空间及其项目；需遵循 PRD 的安全要求（多工作空间隔离、最小权限）。[来源: docs/epics.md; docs/PRD.md:57,146]
+</acceptanceCriteria>
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epics Breakdown</title>
+        <section>Story 1.2</section>
+        <snippet>1. 支持创建/编辑/归档工作空间；项目需关联到具体工作空间。 2. 新项目创建时自动生成默认目录结构及占位文档。 3. 权限校验确保非成员无法访问对应工作空间。</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements</title>
+        <section>治理与协作 / 安全性</section>
+        <snippet>工作空间级权限管理、操作日志、审批流，支持多团队协作。 数据安全：数据传输与存储全程加密，提供脱敏策略、操作审计、最小权限访问。</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Architecture Decision Record</title>
+        <section>Data Architecture</section>
+        <snippet>workspace (id, name, plan) ↔ project (id, workspace_id, name, status)。 所有实体包含 `created_at`, `updated_at`, `created_by` 字段以支持审计。</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Architecture Decision Record</title>
+        <section>Code Organization</section>
+        <snippet>- backend.app 按 `api/`, `services/`, `repositories/`, `schemas/`, `core/`, `tasks/` 划分。 - 前端在 `src/app` 使用 React Router 管理页面，`src/components` 同时存放自定义组件与通过 shadcn/ui 生成的组件。</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-specs/platform-core-modules.md</path>
+        <title>平台核心模块技术规格</title>
+        <section>AuthService（Story 1.1 底座）</section>
+        <snippet>AuthService 负责账号注册、登录、会话刷新、登出、密码重置，并记录安全审计日志。 主要接口包括 `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `POST /api/v1/auth/refresh`。</snippet>
+      </doc>
+    </docs>
+    <code>
+      <codeArtifact>
+        <path>backend/app/api/auth.py</path>
+        <kind>fastapi-router</kind>
+        <symbol>router.post("/register/request")</symbol>
+        <lines>39-126</lines>
+        <reason>展示 FastAPI 路由注册、依赖注入与速率限制 wiring，可复用结构为工作空间 API。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>backend/app/services/auth.py</path>
+        <kind>service</kind>
+        <symbol>AuthService</symbol>
+        <lines>24-199</lines>
+        <reason>说明服务层职责拆分、审计日志记录与令牌签发流程，为新建 WorkspaceService 提供模式。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>backend/app/repositories/user.py</path>
+        <kind>repository</kind>
+        <symbol>UserRepository</symbol>
+        <lines>9-55</lines>
+        <reason>展示 SQLModel 仓储封装与 commit/refresh 习惯，可比照实现 WorkspaceRepository。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>backend/app/models/user.py</path>
+        <kind>model</kind>
+        <symbol>User</symbol>
+        <lines>9-32</lines>
+        <reason>演示 SQLModel 表定义、时间戳字段与命名规范，为 workspace/project 表设计提供参考。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>backend/app/core/rate_limit.py</path>
+        <kind>utility</kind>
+        <symbol>InMemoryRateLimiter</symbol>
+        <lines>8-28</lines>
+        <reason>提供开发期限流实现，可套用到工作空间创建等敏感操作。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>backend/tests/test_auth_flow.py</path>
+        <kind>pytest</kind>
+        <symbol>test_registration_login_and_audit_logs</symbol>
+        <lines>1-120</lines>
+        <reason>给出端到端 API 测试写法（TestClient + SQLite），对工作空间路由测试具指导意义。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>frontend/src/lib/api.ts</path>
+        <kind>frontend-api-client</kind>
+        <symbol>authApi</symbol>
+        <lines>1-47</lines>
+        <reason>封装 fetch + 错误处理的模式，扩展 workspace/project API 时需保持一致。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>frontend/src/app/(auth)/LoginPage.tsx</path>
+        <kind>react-component</kind>
+        <symbol>LoginPage</symbol>
+        <lines>1-78</lines>
+        <reason>展示 React Hook Form + Zustand/TanStack Query 兼容的表单实现，工作空间表单可复用。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>frontend/src/app/__tests__/LoginPage.test.tsx</path>
+        <kind>rtl-test</kind>
+        <symbol>LoginPage tests</symbol>
+        <lines>1-96</lines>
+        <reason>提供 React Testing Library 断言模式，为新建管理页测试提供模板。</reason>
+      </codeArtifact>
+    </code>
+    <dependencies>
+      <ecosystem name="python">
+        <package>fastapi</package>
+        <package>sqlmodel</package>
+        <package>alembic</package>
+        <package>python-jose</package>
+        <package>passlib[argon2]</package>
+        <package>redis</package>
+      </ecosystem>
+      <ecosystem name="node">
+        <package>react</package>
+        <package>react-router-dom</package>
+        <package>@tanstack/react-query</package>
+        <package>zustand</package>
+        <package>react-hook-form</package>
+        <package>tailwindcss</package>
+        <package>@testing-library/react</package>
+      </ecosystem>
+      <ecosystem name="tooling">
+        <package>poetry</package>
+        <package>pytest</package>
+        <package>ruff</package>
+        <package>vite</package>
+        <package>eslint</package>
+        <package>vitest</package>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+  <constraints>
+    <constraint>权限与审计：遵循 docs/PRD.md 安全要求，所有工作空间/项目操作必须校验角色、记录 audit_logs（复用 AuthService 审计机制）。</constraint>
+    <constraint>数据模型：数据库命名与关系需符合 docs/architecture.md Data Architecture（workspace ↔ project）以及 Alembic 迁移规范。</constraint>
+    <constraint>目录生成：默认目录结构必须匹配 docs/architecture.md#Naming Conventions 中的对象存储路径 `workspaces/{workspace_id}/...`，避免覆盖既有 artefact。</constraint>
+    <constraint>接口风格：后端遵循既有 FastAPI 分层（api → services → repositories），前端保持 React + TanStack Query 模式，全部代码符合 docs/Python编码规范与风格指南.md。</constraint>
+    <constraint>扩展性：实现需为 Story 1.3 角色矩阵预留角色/权限扩展点（例如 role mapping、scope 字段），不可硬编码管理员列表。</constraint>
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>POST /api/v1/workspaces</name>
+      <kind>REST</kind>
+      <signature>创建工作空间并写入成员、plan、描述，返回 workspace_id。</signature>
+      <path>backend/app/api/workspaces.py</path>
+    </interface>
+    <interface>
+      <name>PATCH /api/v1/workspaces/{workspace_id}</name>
+      <kind>REST</kind>
+      <signature>更新名称/描述或切换状态（active ↔ archived），需记录审计日志。</signature>
+      <path>backend/app/api/workspaces.py</path>
+    </interface>
+    <interface>
+      <name>POST /api/v1/workspaces/{workspace_id}/projects</name>
+      <kind>REST</kind>
+      <signature>在指定工作空间下初始化项目并触发默认目录/占位文档生成。</signature>
+      <path>backend/app/api/workspaces.py</path>
+    </interface>
+    <interface>
+      <name>GET /api/v1/workspaces</name>
+      <kind>REST</kind>
+      <signature>按当前用户权限返回可访问工作空间列表及项目概览。</signature>
+      <path>backend/app/api/workspaces.py</path>
+    </interface>
+    <interface>
+      <name>GET /api/v1/workspaces/{workspace_id}</name>
+      <kind>REST</kind>
+      <signature>返回单个工作空间详情、成员与项目摘要，用于前端详情页。</signature>
+      <path>backend/app/api/workspaces.py</path>
+    </interface>
+    <interface>
+      <name>WorkspaceService.create_workspace</name>
+      <kind>service-function</kind>
+      <signature>封装工作空间与默认目录事务、审计记录、成员加入逻辑。</signature>
+      <path>backend/app/services/workspaces.py</path>
+    </interface>
+    <interface>
+      <name>WorkspaceRepository</name>
+      <kind>repository</kind>
+      <signature>提供 workspace/project CRUD、关联查询与状态过滤。</signature>
+      <path>backend/app/repositories/workspaces.py</path>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>后端使用 Pytest + FastAPI TestClient 进行 API/权限覆盖，遵循 docs/Python编码规范与风格指南.md 的命名与结构；前端采用 Vitest + React Testing Library，断言交互与权限提示，统一走 src/app/**/__tests__ 布局。</standards>
+    <locations>
+      <location>backend/tests</location>
+      <location>frontend/src/app/__tests__</location>
+      <location>docs/PRD.md#治理与协作</location>
+    </locations>
+    <ideas>
+      <idea>AC1: 编写工作空间创建/编辑/归档的 API 集成测试，验证状态流转与审计记录。</idea>
+      <idea>AC2: 覆盖项目初始化逻辑，断言默认目录/占位文档生成及事务回滚。</idea>
+      <idea>AC3: 权限测试——非成员访问返回 403，并校验审计日志写入；成员访问通过。</idea>
+      <idea>FE: 使用 RTL 模拟表单提交、权限提示、成功跳转，确保 UI 流程与后端返回一致。</idea>
+    </ideas>
+  </tests>
+</story-context>

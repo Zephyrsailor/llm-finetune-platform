@@ -1,0 +1,21 @@
+# macOS & editor clutter
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+venv/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/package-lock.json
+
+# Build artifacts
+tmp/
+storage/
+*.log
+
+# Project-specific
+bmad/

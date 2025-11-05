@@ -1,0 +1,94 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>2</storyId>
+    <title>向导式训练编排</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-31T12:20:00Z</generatedAt>
+    <generator>Codex Agent</generator>
+    <sourceStoryPath>docs/stories/story-3.2.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>数据科学家</asA>
+    <iWant>通过分步骤向导完成模型模板选择、数据绑定、资源与参数配置</iWant>
+    <soThat>可以低门槛地复用历史配置并快速启动训练任务</soThat>
+    <tasks><![CDATA[
+- [ ] 后端：新增训练向导草稿存储表及 CRUD API，提供配置预校验、模板/数据来源查询与资源可用性检查。
+- [ ] 后端：扩展 TrainingService 支持草稿加载、历史任务复制、训练作业创建时的完整校验与审计记录。
+- [ ] 前端：实现向导步骤界面（模板选择、数据选择、资源配置、参数确认、预览），支持草稿保存/恢复与历史配置复用。
+- [ ] 前端：整合实时校验与提示（参数范围、数据质量、资源可用性），完成训练提交后的结果展示与日志入口链接。
+- [ ] 测试与文档：补充后端 pytest、前端 Vitest，更新技术规格/UX 文档，描述向导流程与草稿策略。
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 多步骤向导提供默认值、实时校验与错误提示，不完整配置无法继续。
+2. 支持草稿保存/恢复与历史任务复制，满足 5 分钟内启动训练的目标。
+3. 向导完成后创建训练任务、输出任务状态/日志入口，并记录审计日志；校验失败返回具体指引。
+    ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epic 3 – Story 3.2" section="向导式训练编排" snippet="按步骤完成模型、数据、资源、超参配置，支持保存草稿与复制历史任务。" />
+      <doc path="docs/PRD.md" title="PRD – 端到端流程" section="Training Flow" snippet="用户可复制历史配置，5 分钟内发起训练；向导需提供校验与默认值。" />
+      <doc path="docs/architecture.md" title="Architecture" section="Training Engine" snippet="TrainingService + Celery 任务、训练日志与 Artefact 目录约束。" />
+      <doc path="docs/tech-specs/platform-core-modules.md" title="Platform Core Modules" section="TrainingService" snippet="训练作业 API、数据模型、GPU 调度策略与日志事件表。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Flow 2: Training Wizard" snippet="训练向导步骤条、草稿、默认值与校验提示设计。" />
+      <doc path="docs/stories/story-3.1.md" title="Story 3.1 Dev Notes" snippet="模板库、参数校验、训练作业接口已完成，为向导提供基础能力。" />
+    </docs>
+    <code>
+      <artifact path="backend/app/services/training.py" kind="service" symbol="TrainingService" reason="扩展草稿与向导相关 API/校验。" />
+      <artifact path="backend/app/api/training.py" kind="api" symbol="Training endpoints" reason="新增草稿/校验端点。" />
+      <artifact path="backend/app/models/training.py" kind="model" symbol="TrainingTemplate/Job" reason="需扩展草稿模型或关联字段。" />
+      <artifact path="backend/app/tasks/training.py" kind="task" symbol="run_training_job" reason="向导提交后复用任务执行逻辑。" />
+      <artifact path="frontend/src/app/training/TemplateLibraryPage.tsx" kind="component" symbol="Template library" reason="向导需与模板库共享导航和 API。" />
+      <artifact path="frontend/src/app/training" kind="component" symbol="Wizard components" reason="新增向导步骤 UI 及草稿交互。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">
+        <package name="fastapi" version="^0.111.0" />
+        <package name="celery" version="^5.4.0" />
+        <package name="sqlmodel" version="^0.0.22" />
+      </dependency>
+      <dependency ecosystem="node">
+        <package name="@tanstack/react-query" version="^5.56.2" />
+        <package name="react-hook-form" version="^7.52.0" />
+        <package name="@testing-library/react" version="^14.2.2" />
+        <package name="zod" version="^3.23.8" optional="true" />
+      </dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <item>仅允许质量达标且生成标准化格式的数据集版本进入向导。</item>
+    <item>向导步骤需保存草稿（后端或 localStorage），并提供从历史任务复制配置的入口。</item>
+    <item>参数校验需沿用 TrainingService 的规则；校验失败返回清晰提示。</item>
+    <item>创建训练任务前需检查 GPU 队列与并发限制，失败时阻止提交。</item>
+    <item>完成页需展示任务状态与日志入口（Story 3.3将实现监控面板，当前可留占位）。</item>
+  </constraints>
+
+  <interfaces>
+    <interface name="GET /api/v1/training/templates" kind="REST endpoint" signature="list templates" path="backend/app/api/training.py" />
+    <interface name="POST /api/v1/training/wizard/draft" kind="REST endpoint" signature="save wizard draft" path="backend/app/api/training.py" />
+    <interface name="GET /api/v1/training/wizard/draft" kind="REST endpoint" signature="load wizard draft" path="backend/app/api/training.py" />
+    <interface name="POST /api/v1/training/jobs" kind="REST endpoint" signature="create training job" path="backend/app/api/training.py" />
+    <interface name="training.run_job" kind="Celery task" signature="run_job(job_id)" path="backend/app/tasks/training.py" />
+    <interface name="trainingApi" kind="TypeScript API client" signature="trainingApi.createJob(payload)" path="frontend/src/lib/api.ts" />
+  </interfaces>
+
+  <tests>
+    <standards><![CDATA[
+后端：pytest + FastAPI TestClient 覆盖草稿 CRUD、配置预校验、训练作业创建；前端：Vitest + Testing Library 覆盖向导步骤渲染、草稿保存/恢复、校验与提交交互。]]></standards>
+    <locations><![CDATA[
+backend/tests/test_training_wizard.py
+frontend/src/app/training/__tests__/TrainingWizard.test.tsx
+frontend/src/lib/__tests__/trainingApi.test.ts
+    ]]></locations>
+    <ideas><![CDATA[
+- AC1：模拟按步骤填写配置并触发校验错误，确认无法进入下一步。
+- AC2：保存草稿 → 清空表单 → 恢复草稿；复制历史任务并比较参数一致性。
+- AC3：提交向导完成训练任务，验证 Job 返回状态、日志入口及审计记录。
+    ]]></ideas>
+  </tests>
+</story-context>

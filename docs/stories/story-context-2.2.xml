@@ -1,0 +1,98 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>2</storyId>
+    <title>数据清洗与脱敏流水线</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-30T08:17:35Z</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-2.2.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>合规负责人</asA>
+    <iWant>配置去重、噪声过滤与敏感词/PII 脱敏策略并查看运行结果</iWant>
+    <soThat>数据在训练前符合企业安全与合规要求</soThat>
+    <tasks><![CDATA[
+- [ ] 后端：新增规则模板与 dataset-version 绑定模型及 API，支持启用/禁用清洗模板。（AC#1）
+  - [ ] 设计模板结构并提供 CRUD、权限验证与单元测试。（AC#1）
+- [ ] 后端：扩展 Celery 清洗任务执行模板，生成 `stats_json`、日志与导出文件，并暴露下载接口。（AC#2, AC#3）
+  - [ ] 记录清洗指标、导出 JSON/CSV，总结审计信息并保护访问权限。（AC#2, AC#3）
+- [ ] 前端：新增数据清洗配置/结果界面，支持选择模板、触发运行、展示统计与导出。（AC#1, AC#2, AC#3）
+  - [ ] 补充 Vitest/RTL 测试覆盖模板渲染、状态提示、导出按钮交互。（AC#2, AC#3）
+- [ ] 测试/DevOps：完善 pytest fixture（SQLite 自动建表）、新增后端&前端测试，补文档说明。（AC#1, AC#2, AC#3）
+- [ ] 文档：更新技术规格与 UX，记录清洗流水线行为、指标字段与导出流程。（AC#1, AC#2, AC#3）
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 提供可维护的清洗规则模板，并能对数据集版本启用/禁用具体模板，运行时记录所用模板版本。
+2. 清洗生成的 `dataset_versions.stats_json` 与日志包含去重/脱敏统计、错误样本和耗时，并可在前端提示中查看。
+3. 清洗模板和结果摘要可导出（JSON/CSV），导出文件路径受 RBAC 保护，可用于审计留档。
+    ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epic 2 – Story 2.2" section="数据清洗与脱敏流水线" snippet="要求配置去重、噪声过滤与敏感词/PII 脱敏策略，并输出统计与可审计结果。" />
+      <doc path="docs/PRD.md" title="PRD – 数据与语料工作台" section="Functional Requirements / Data Platform" snippet="数据平台需提供清洗（去重、噪声、敏感词/PII 脱敏）与质量评估能力，并使用 Pandas/Polars 等规则引擎。" />
+      <doc path="docs/architecture.md" title="Architecture – Epic Mapping" section="E2 数据与语料工作台" snippet="DataHubService 与 DataPipelineOrchestrator 负责调度清洗/脱敏流水线，生成版本化 artefact 与日志。" />
+      <doc path="docs/tech-specs/platform-core-modules.md" title="Tech Spec – DataHubService" section="DataHubService" snippet="定义 datasets/dataset_versions/data_cleaning_jobs 模型、Celery 任务 `data_cleaning.run_initial_cleaning`、指标和日志路径。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Flow 1：导入语料并完成数据准备" snippet="在上传后需进入清洗/脱敏步骤，并向用户展示清洗结果与后续评估入口。" />
+      <doc path="docs/stories/story-2.1.md" title="Story 2.1 完成记录" section="Dev Notes / Completion Notes" snippet="已交付数据集导入与清洗占位任务，留有测试补齐与 Celery 真实逻辑扩展的后续事项。" />
+    </docs>
+    <code>
+      <artifact path="backend/app/services/data_hub.py" kind="service" symbol="DataHubService" lines="1-240" reason="已有数据集与清洗任务骨架需在此扩展模板选择、指标更新与导出逻辑。" />
+      <artifact path="backend/app/tasks/data_cleaning.py" kind="task" symbol="run_initial_cleaning" lines="1-80" reason="当前占位清洗任务将被替换为执行模板的实际逻辑并生成统计。" />
+      <artifact path="backend/app/models/dataset.py" kind="model" symbol="DatasetVersion / DataCleaningJob" lines="1-160" reason="需要扩展模型以记录清洗模板、指标与导出信息。" />
+      <artifact path="backend/app/api/datasets.py" kind="api" symbol="create_dataset_version" lines="1-130" reason="扩展 API 以接受模板选择、暴露统计及导出端点。" />
+      <artifact path="backend/tests/test_datasets.py" kind="test" symbol="test_create_dataset_version_triggers_cleaning_job" lines="1-210" reason="现有测试需补充真实清洗流程与指标断言，并修复 SQLite 表初始化问题。" />
+      <artifact path="frontend/src/app/data-hub/DatasetUploadPage.tsx" kind="component" symbol="DatasetUploadPage" lines="1-220" reason="在此页面或新页面呈现清洗模板选择、运行状态与结果展示。" />
+      <artifact path="frontend/src/lib/api.ts" kind="api-client" symbol="dataHubApi" lines="190-320" reason="需要新增清洗模板、执行、导出等前端 API 调用封装。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">
+        <package name="fastapi" version="^0.111.0" />
+        <package name="sqlmodel" version="^0.0.21" />
+        <package name="alembic" version="^1.13.2" />
+        <package name="redis" version="^5.0.7" />
+        <package name="python-multipart" version="^0.0.9" />
+        <package name="pydantic-settings" version="^2.3.4" />
+      </dependency>
+      <dependency ecosystem="node">
+        <package name="react" version="^18.3.1" />
+        <package name="@tanstack/react-query" version="^5.56.2" />
+        <package name="react-hook-form" version="^7.52.0" />
+        <package name="vitest" version="^1.6.0" />
+        <package name="@testing-library/react" version="^14.2.2" />
+      </dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <item>遵循现有 Domain Service + Repository 模式扩展清洗逻辑，API 层保持 FastAPI + Pydantic Schema，完成后更新 OpenAPI 文档。</item>
+    <item>Artefact 输出必须放在 `/var/lib/llmft/datasets/{workspace}/{dataset_id}/v{version}/clean` 与 `logs` 下，保持 Data Version Snapshot 模式，导出文件需要记录审计日志。</item>
+    <item>Celery 任务需保持幂等和可重试，避免重复清洗污染数据；失败时更新 `DataCleaningJob.status=failed` 并写入错误详情供治理模块使用。</item>
+    <item>前端遵循现有 UI 规范（Tailwind + shadcn/ui），支持中文文案，测试需覆盖模板切换、运行状态和导出流程。</item>
+    <item>补齐 Story 2.1 遗留的测试环境问题（SQLite 表初始化、Vitest 中文断言），确保 QA 能稳定执行自动化用例。</item>
+  </constraints>
+  <interfaces>
+    <interface name="POST /api/v1/datasets/{id}/cleaning-config" kind="REST endpoint" signature="POST /api/v1/datasets/{dataset_id}/cleaning-config" path="backend/app/api/datasets.py" />
+    <interface name="POST /api/v1/datasets/{id}/cleaning-run" kind="REST endpoint" signature="POST /api/v1/datasets/{dataset_id}/cleaning-run" path="backend/app/api/datasets.py" />
+    <interface name="GET /api/v1/datasets/{id}/versions/{version_id}/cleaning-export" kind="REST endpoint" signature="GET .../cleaning-export?format=json|csv" path="backend/app/api/datasets.py" />
+    <interface name="dataHubApi.cleaning" kind="TypeScript function" signature="cleaningApi.run({ datasetId, templateId }): Promise&lt;CleaningResult&gt;" path="frontend/src/lib/api.ts" />
+  </interfaces>
+  <tests>
+    <standards><![CDATA[
+后端沿用 pytest + FastAPI TestClient + SQLite 临时数据库；清洗规则执行可用 Pandas/Polars 生成统计并断言 `stats_json` 与导出文件。前端使用 Vitest + React Testing Library 模拟模板切换、运行成功/失败提示。请更新测试 fixture 以自动建表，避免 “no such table” 报错。]]></standards>
+    <locations><![CDATA[
+backend/tests/
+frontend/src/app/data-hub/
+frontend/src/lib/
+    ]]></locations>
+    <ideas><![CDATA[
+- AC1：编写单元/集成测试验证模板 CRUD、启用/禁用逻辑，以及清洗运行时记录模板版本。
+- AC2：构造包含重复行与敏感字段的样本数据，断言 stats_json 中的去重/脱敏计数与错误日志。
+- AC3：调用导出接口并检查生成的 JSON/CSV 内容、权限校验和审计日志记录；前端测试导出按钮状态。
+    ]]></ideas>
+  </tests>
+</story-context>

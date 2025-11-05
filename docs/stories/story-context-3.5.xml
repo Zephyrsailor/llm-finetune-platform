@@ -1,0 +1,90 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>5</storyId>
+    <title>元数据与实验管理</title>
+    <status>Done</status>
+    <generatedAt>2025-10-31T10:20:00Z</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-3.5.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>产品分析师</asA>
+    <iWant>追踪训练元数据并对比实验结果</iWant>
+    <soThat>沉淀最佳实践并快速复盘/优化</soThat>
+    <tasks><![CDATA[
+- [x] 后端（AC#1）：扩展 `training_runs`/`training_jobs` 元数据模型与仓储，记录模型/数据版本、参数、耗时、资源/成本，并暴露查询与分页 API。
+  - [x] 在 `TrainingService` 执行流程中聚合训练上下文（模板、数据格式、快照、监控告警）写入 `metadata_json`，并新增审计事件 `training.experiment.recorded`。
+  - [x] 针对元数据新增验证/迁移（Alembic）、容错处理与 pytest 覆盖（字段写入、查询、导出）。
+- [x] 后端（AC#2）：实现训练运行对比 API，返回指标差异、配置 diff、相关快照/告警链接，并可按工作空间筛选。
+  - [x] Reuse `training_metric_samples` 计算对比数据，落地临时报告（JSON），并扩展监控/快照链接字段。
+- [x] 后端（AC#3）：实现导出/知识库占位接口，生成 JSON/CSV/Markdown，并写入审计日志 + 导出 artefact（含 retention 策略）。
+- [x] 前端（AC#2, AC#3）：在 Training 模块新增“实验管理/对比”页面，提供运行筛选、差异对比视图、导出按钮与知识库占位操作。
+  - [x] 扩展 `frontend/src/lib/api.ts` 调用新 API，提供 TanStack Query 缓存与错误提示，支持响应式布局。
+- [x] 测试与文档（AC#1-#3）：补充后端 pytest（元数据写入、对比、导出），前端单测/交互测试（对比渲染、导出回调），并更新技术规格/架构/UX 文档说明元数据目录、API 契约与导出策略。
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 训练任务记录模型版本、数据版本、超参、耗时、资源消耗/成本等元数据（含日志/审计引用），并可在后端 API 查询与导出。
+2. 平台 UI 支持选择两次训练运行，展示指标与配置差异（含可视化对比、快照链接、告警记录），便于分析实验效果。
+3. 元数据与对比结果可导出为结构化文件（JSON/CSV/Markdown），通过知识库/BI 占位接口留痕（含审计日志），支持后续治理与汇报。
+  ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epics" section="Story [3.5]: 元数据与实验管理" snippet="Story 3.5 在 epics 文档中明确要记录模型、数据、参数、耗时、成本，并在 UI 中提供实验对比与知识库导出能力。" />
+      <doc path="docs/PRD.md" title="产品需求说明" section="Functional Requirements – 微调执行引擎" snippet="PRD 指出微调执行引擎需保存完整的模型版本、数据版本、参数与日志元数据，为后续复盘提供依据。" />
+      <doc path="docs/tech-specs/platform-core-modules.md" title="Platform Core Modules" section="TrainingService" snippet="技术规格描述了 training_jobs 与 training_runs 数据模型、监控与审计流程，是扩展实验元数据与对比 API 的基础。" />
+      <doc path="docs/tech-specs/runtime-operations.md" title="Runtime Operations" section="Artefact 清理与容量监控" snippet="运维指引给出了 `/var/lib/llmft/training/{workspace}/{project}/runs/{run_id}` 等目录和清理策略，实验导出文件需遵循该结构。" />
+      <doc path="docs/architecture.md" title="Architecture" section="Epic to Architecture Mapping" snippet="架构映射将 E3 微调执行引擎绑定到 FastAPI + Celery + PostgreSQL + 本地 artefact 目录，说明实验管理应复用现有组件。" />
+      <doc path="docs/product-brief-llm-finetune-platform-2025-10-23.md" title="Product Brief" section="Strategic Initiatives" snippet="产品简报提出要沉淀最佳实践到知识库，为实验数据导出与案例积累提供战略目标。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Screen Layout 3：Evaluation Report" snippet="UX 布局展示指标对比图与导出入口，提示实验对比界面需要可视化差异和导出操作。" />
+      <doc path="docs/stories/story-3.4.md" title="Story 3.4" section="Dev Notes" snippet="快照故事强调复用监控与审计机制，实验管理实现应在此基础上收集元数据并关联告警/快照。" />
+    </docs>
+    <code>
+      <code path="backend/app/models/training.py" kind="model" symbol="TrainingRun" lines="131-194" reason="训练运行模型目前存储 metrics_json 等字段，需在此扩展 metadata_json 与实验链路关联。" />
+      <code path="backend/app/repositories/training.py" kind="repository" symbol="TrainingRunRepository" lines="159-206" reason="仓储层负责创建与更新训练运行，将新增元数据读写和对比查询方法。" />
+      <code path="backend/app/services/training.py" kind="service" symbol="TrainingService.create_job" lines="300-352" reason="服务层聚合模板、数据与资源配置，应在创建流程写入实验元数据并触发审计事件。" />
+      <code path="backend/app/api/training.py" kind="api" symbol="POST /api/v1/training/jobs" lines="208-245" reason="训练 API 暴露 job/run 信息，新实验端点与响应字段将基于此处扩展。" />
+      <code path="backend/app/api/training_monitor.py" kind="api" symbol="GET /v1/training/monitor/runs" lines="26-66" reason="监控端点返回指标与告警列表，为实验差异分析和 UI 复用提供数据源。" />
+      <code path="backend/app/tasks/training.py" kind="task" symbol="run_training_job" lines="21-162" reason="Celery 任务记录训练指标与快照，需要增加资源/成本统计以填充元数据。" />
+      <code path="backend/tests/test_training.py" kind="test" symbol="test_training_template_and_job_flow" lines="1-160" reason="现有集成测试覆盖训练流程，可扩展断言新元数据与导出逻辑。" />
+      <code path="frontend/src/lib/api.ts" kind="client" symbol="trainingApi" lines="773-860" reason="前端 API 客户端封装训练接口，需添加实验列表、对比与导出请求。" />
+      <code path="frontend/src/app/training/TrainingMonitorPage.tsx" kind="component" symbol="TrainingMonitorPage" lines="1-200" reason="实时监控组件展示指标曲线和导出按钮，可借鉴交互模式到实验对比页面。" />
+      <code path="frontend/src/app/training/TrainingSnapshotsPage.tsx" kind="component" symbol="TrainingSnapshotsPage" lines="1-220" reason="快照管理界面实现运行筛选和反馈提示，可复用筛选逻辑用于实验选择。" />
+      <code path="frontend/src/app/training/TrainingMonitorPage.test.tsx" kind="test" symbol="训练监控页面测试" lines="1-160" reason="前端测试演示如何 mock fetch 与验证渲染，是实验管理测试的参考样板。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">fastapi ^0.111.0; sqlmodel ^0.0.21; alembic ^1.13.2; redis ^5.0.7; python-jose ^3.3.0; pytest ^8.3.2</dependency>
+      <dependency ecosystem="frontend">react ^18.3.1; @tanstack/react-query ^5.56.2; vite ^5.3.4; tailwindcss ^3.4.7; vitest ^1.6.0</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints><![CDATA[
+- 遵循架构中的 Domain Service + Repository 分层，新增实验能力需在服务层聚合并通过仓储持久化。
+- 关键操作必须写入 `audit_logs`，并沿用 `training_launch` / `approval_manage` 权限校验保证 RBAC 合规。
+- 实验元数据与导出文件存放在 `/var/lib/llmft/training/{workspace}/{project}/runs/{run_id}`，需配合现有清理与保留策略。
+- 代码应遵守《Python编码规范与风格指南》及前端 React/Tailwind 约定，禁止引入未声明依赖或硬编码路径。
+  ]]></constraints>
+  <interfaces>
+    <interface name="create_training_job" kind="REST" signature="POST /api/v1/training/jobs" path="backend/app/api/training.py#L208-L245" />
+    <interface name="get_training_job" kind="REST" signature="GET /api/v1/training/jobs/{job_id}" path="backend/app/api/training.py#L248-L264" />
+    <interface name="list_training_runs" kind="REST" signature="GET /api/v1/training/monitor/runs?workspace_id=" path="backend/app/api/training_monitor.py#L26-L66" />
+    <interface name="list_run_metrics" kind="REST" signature="GET /api/v1/training/monitor/runs/{run_id}/metrics" path="backend/app/api/training_monitor.py#L69-L88" />
+    <interface name="export_alerts" kind="REST" signature="GET /api/v1/training/monitor/alerts/export?workspace_id=" path="backend/app/api/training_monitor.py#L190-L225" />
+  </interfaces>
+  <tests>
+    <standards><![CDATA[后端沿用 pytest + SQLModel/SQLite 静态池仿真数据库；前端使用 Vitest 与 @testing-library/react 进行组件交互与可访问性验证。]]></standards>
+    <locations><![CDATA[
+- backend/tests/
+- frontend/src/app/**
+- frontend/src/lib/**/__tests__
+    ]]></locations>
+    <ideas><![CDATA[
+- AC1：编写后端集成测试创建训练任务后读取新元数据 API，断言模型/数据版本、超参与耗时字段全部持久化并写入审计记录。
+- AC2：为运行对比端点构建服务层测试，准备两个 run 样本，验证返回的指标差异和快照/告警链接。
+- AC3：新增导出端点测试生成 JSON/CSV 文件并校验 Content-Disposition，同步前端测试模拟点击导出按钮并确认下载回调触发。]]></ideas>
+  </tests>
+</story-context>

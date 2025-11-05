@@ -1,0 +1,94 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>1</storyId>
+    <title>训练方案模板库</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-31T10:10:00Z</generatedAt>
+    <generator>Codex Agent</generator>
+    <sourceStoryPath>docs/stories/story-3.1.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>ML 工程师</asA>
+    <iWant>快速选择并调整 LoRA/QLoRA/DoRA 等训练模板，保存常用配置</iWant>
+    <soThat>可以在不同项目中迅速复用可靠的微调方案</soThat>
+    <tasks><![CDATA[
+- [ ] 后端：新增 `training_templates`、`training_jobs` 模型与仓储，扩展 TrainingService 提供模板 CRUD/克隆、参数校验，并串联 Celery `training.run_job` 任务。
+- [ ] API：实现 `GET/POST /api/v1/training-templates`、`POST /api/v1/training-templates/{id}:clone`、`POST /api/v1/training-jobs`，校验数据版本、基座模型、权限与参数范围。
+- [ ] 前端：构建 Training 模块模板库页面与向导步骤 1，支持模板列表、详情编辑、保存自定义模板与一键载入参数。
+- [ ] 校验与提示：提供学习率、rank、batch size 等参数范围校验，失败返回最佳实践提示；撰写后端 pytest、前端 Vitest 覆盖核心流程。
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 平台内置 LoRA/QLoRA/DoRA 模板并展示核心参数，可在 API/UI 中查看与编辑。
+2. 支持导入自定义基座模型、保存/克隆模板并在训练向导中复用。
+3. 参数输入具备范围校验与最佳实践提示，校验失败阻止提交并给出指引。
+    ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epic 3 – Story 3.1" section="训练方案模板库" snippet="LoRA/QLoRA/DoRA 模板、参数预设、保存常用配置。"/>
+      <doc path="docs/PRD.md" title="PRD – 端到端流程" section="Training Flow" snippet="数据准备后进入训练向导，支持复制历史配置、低门槛启动。"/>
+      <doc path="docs/architecture.md" title="Architecture" section="微调执行引擎" snippet="FastAPI + Celery 调度训练任务，Artefact/日志目录及 Training Log 面板要求。"/>
+      <doc path="docs/tech-specs/platform-core-modules.md" title="Platform Core Modules" section="TrainingService" snippet="训练模板/作业数据模型、API、GPU 策略与日志事件表。"/>
+      <doc path="docs/ux-specification.md" title="UX – Training" section="Flow 2 / Navigation" snippet="训练向导步骤、模板卡片、草稿能力、5 分钟内复制历史配置。"/>
+      <doc path="docs/stories/story-2.4.md" title="Story 2.4" section="Dev Notes" snippet="数据格式标准化供训练模块消费，应复用 dataset_format_versions。"/>
+    </docs>
+    <code>
+      <artifact path="backend/app/services" kind="service" symbol="TrainingService" reason="新增训练模板与作业核心逻辑。"/>
+      <artifact path="backend/app/api/training.py" kind="api" symbol="Training endpoints" reason="需要新增训练模板与作业 REST 路由。"/>
+      <artifact path="backend/app/tasks/training.py" kind="task" symbol="run_job" reason="Celery 任务执行微调并写入 training_events。"/>
+      <artifact path="backend/app/models/training.py" kind="model" symbol="TrainingTemplate/TrainingJob" reason="存储模板/作业配置。"/>
+      <artifact path="frontend/src/lib/api.ts" kind="api-client" symbol="trainingApi" reason="封装训练模板/作业 API 调用。"/>
+      <artifact path="frontend/src/app/training" kind="component" symbol="TemplateLibraryPage.tsx" reason="实现模板列表与向导入口。"/>
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">
+        <package name="fastapi" version="^0.111.0"/>
+        <package name="celery" version="^5.4.0"/>
+        <package name="sqlmodel" version="^0.0.22"/>
+      </dependency>
+      <dependency ecosystem="node">
+        <package name="@tanstack/react-query" version="^5.56.2"/>
+        <package name="@testing-library/react" version="^14.2.2"/>
+        <package name="react-hook-form" version="^7.52.0"/>
+        <package name="zod" version="^3.23.8" optional="true"/>
+      </dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <item>仅允许质量评估达标且完成格式标准化的数据集版本参与训练。</item>
+    <item>权限校验需使用 `training_launch` 操作，并写入 `training.job.created` 审计事件。</item>
+    <item>参数校验失败需返回明确提示，防止发送非法超参到 Celery 任务。</item>
+    <item>模板与作业 Artefact 按 `/var/lib/llmft/training/{workspace}/{job}/` 存储，日志供 Training Log 面板实时读取。</item>
+    <item>模板 UI 遵循暗色主题与步骤条/草稿 UX 规范，支持快速筛选与克隆历史模板。</item>
+  </constraints>
+
+  <interfaces>
+    <interface name="GET /api/v1/training-templates" kind="REST endpoint" signature="list templates" path="backend/app/api/training.py"/>
+    <interface name="POST /api/v1/training-templates" kind="REST endpoint" signature="create template" path="backend/app/api/training.py"/>
+    <interface name="POST /api/v1/training-templates/{id}:clone" kind="REST endpoint" signature="clone template" path="backend/app/api/training.py"/>
+    <interface name="POST /api/v1/training-jobs" kind="REST endpoint" signature="create training job" path="backend/app/api/training.py"/>
+    <interface name="training.run_job" kind="Celery task" signature="run_job(job_id)" path="backend/app/tasks/training.py"/>
+    <interface name="trainingApi" kind="TypeScript API client" signature="trainingApi.createTemplate(payload)" path="frontend/src/lib/api.ts"/>
+  </interfaces>
+
+  <tests>
+    <standards><![CDATA[
+后端使用 pytest + FastAPI TestClient + SQLite/StaticPool 覆盖模板 CRUD、参数校验、作业创建/事件写入；前端使用 Vitest + Testing Library 验证模板列表、参数表单、保存/克隆交互与错误提示。]]></standards>
+    <locations><![CDATA[
+backend/tests/test_training_templates.py
+backend/tests/test_training_jobs.py
+frontend/src/app/training/__tests__/
+frontend/src/lib/__tests__/trainingApi.test.ts
+    ]]></locations>
+    <ideas><![CDATA[
+- AC1：预置 LoRA/QLoRA/DoRA 模板，调用列表/创建/克隆端点并断言参数结构与默认值。
+- AC2：模拟上传自定义基座模型标识与自定义模板保存，再在训练作业创建时复用。
+- AC3：构造越界学习率/rank，验证后端返回 422 与最佳实践提示，前端显示表单错误并阻止提交。
+    ]]></ideas>
+  </tests>
+</story-context>

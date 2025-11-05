@@ -1,0 +1,89 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>5</epicId>
+    <storyId>2</storyId>
+    <title>vLLM 部署流水线</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-31T20:10:00Z</generatedAt>
+    <generator>BMAD Story Context (manual draft)</generator>
+    <sourceStoryPath>docs/stories/story-5.2.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>运维工程师</asA>
+    <iWant>在平台上一键将模型版本部署到 vLLM 集群并执行健康检查</iWant>
+    <soThat>业务方可以快速获取稳定的推理服务并按需灰度或回滚</soThat>
+    <tasks><![CDATA[
+- [ ] 设计并创建部署域数据模型（registered_models 已有，新增 deployment_instances/events）及 Alembic 迁移。
+- [ ] 实现 DeploymentService 与 Celery 任务：加载 artefact、执行 Compose/vLLM 启动、健康检查、事件写入、回滚。
+- [ ] 开发部署 REST API（创建、列表、状态切换、回滚、导出凭证），校验 RBAC 与审计。
+- [ ] 构建前端部署页面（筛选模型版本、部署表单、状态卡片、灰度操作、导出/复制凭证、事件列表）。
+- [ ] 编写后端 pytest 覆盖成功部署/失败回滚/无评估阻断等场景；编写前端 Vitest 覆盖表单与操作流程。
+- [ ] 更新技术规格、架构、UX 文档与故事记录，补充部署流程、事件与 UI 行为说明。
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 后端部署 API 支持资源配置、健康检查、审计记录并写入 deployment_instances/events。
+2. 部署必须验证生产模型版本与评估闸门，失败自动回滚并生成通知，成功返回 endpoint/token。
+3. 支持灰度/回滚操作，所有状态切换写入事件并可追溯。
+4. 前端部署页面提供模型版本列表、部署表单、状态/事件展示、导出与监控入口。
+  ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epics" section="Story [5.2]" snippet="vLLM 部署流水线故事描述与三条验收标准。" />
+      <doc path="docs/PRD.md" title="PRD" section="部署与服务平台" snippet="定义部署流程、健康检查、灰度/回滚与凭证发放需求。" />
+      <doc path="docs/product-brief-llm-finetune-platform-2025-10-23.md" title="Product Brief" section="Platform Requirements / Architecture Considerations" snippet="部署平台基于 vLLM，一键部署、版本管理、灰度发布与 Compose 管理要求。" />
+      <doc path="docs/technical-decisions.md" title="Technical Decisions" section="Deployment" snippet="使用 Docker Compose + NVIDIA Toolkit 管理 vLLM，定义健康检查与 GPU 调度策略。" />
+      <doc path="docs/architecture.md" title="Architecture" section="Epic to Architecture Mapping / Deployment Manager" snippet="DeploymentManager、ModelRegistryService、事件流与健康检查设计。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Flow 3" snippet="部署流程 UI：登记模型版本、配置资源、健康检查、灰度/回滚动作。" />
+      <doc path="docs/tech-specs/platform-core-modules.md" title="Platform Core Modules" section="ModelRegistryService / DeploymentManager" snippet="部署模块接口、数据模型、事件记录与健康检查策略。" />
+    </docs>
+    <code>
+      <code path="backend/app/services/model_registry.py" kind="service" symbol="ModelRegistryService" lines="1-360" reason="复用模型版本、评估闸门与 artefact 路径，为部署管线提供依赖数据。" />
+      <code path="backend/app/tasks/evaluation.py" kind="task" symbol="run_evaluation_job" lines="60-200" reason="参考 Celery 任务结构与健康检查结果处理模式，实现部署任务。" />
+      <code path="backend/app/services/training.py" kind="service" symbol="TrainingService" lines="200-420" reason="复用 Celery 任务调度、GPU 资源配置与 audit 记录模式。" />
+      <code path="frontend/src/app/models/ModelRegistryPage.tsx" kind="component" symbol="ModelRegistryPage" lines="1-320" reason="复用模型版本列表与状态展示，为部署页提供上下文信息与跳转。" />
+      <code path="frontend/src/lib/api.ts" kind="client" symbol="modelRegistryApi" lines="900-1100" reason="参考 API 客户端结构，新增 deploymentApi 时保持一致。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">FastAPI, SQLModel, Alembic, Celery, Docker Compose</dependency>
+      <dependency ecosystem="frontend">React, TypeScript, TanStack Query, Tailwind CSS</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints><![CDATA[
+- 部署操作需具备 `deployment_manage` 权限，并将关键事件写入 `audit_logs` 与 `deployment_events`；同时触发 NotificationHub 提醒运维。
+- 仅允许对 `ModelVersionStatus.PRODUCTION` 的版本部署；Promotion 依赖的评估阈值必须全部通过，若缺失评估则直接阻断。
+- 任务执行需串行占用 GPU，防止与训练任务冲突；部署失败须回滚至上一生产版本并恢复流量。
+- Endpoints/token 存储需安全，导出时屏蔽敏感信息（非对称密钥或环境变量）；前端复制时提示保密。
+- 前端需提供可访问性支持：ARIA 标签、键盘导航、深色主题对比度，并在错误/成功提示中提供明确文案。
+  ]]></constraints>
+
+  <interfaces>
+    <interface name="create_deployment" kind="REST" signature="POST /api/v1/deployments" path="backend/app/api/deployment.py" />
+    <interface name="list_deployments" kind="REST" signature="GET /api/v1/deployments?workspace_id=&project_id=" path="backend/app/api/deployment.py" />
+    <interface name="promote_deployment" kind="REST" signature="POST /api/v1/deployments/{deployment_id}/promote" path="backend/app/api/deployment.py" />
+    <interface name="rollback_deployment" kind="REST" signature="POST /api/v1/deployments/{deployment_id}/rollback" path="backend/app/api/deployment.py" />
+    <interface name="export_credentials" kind="REST" signature="POST /api/v1/deployments/{deployment_id}:export" path="backend/app/api/deployment.py" />
+  </interfaces>
+
+  <tests>
+    <standards><![CDATA[
+- 后端：pytest + SQLModel 覆盖部署成功/失败/回滚、健康检查、审计事件与 Celery 任务行为；Mock vLLM 健康检查返回值。
+- 前端：Vitest + RTL 覆盖部署表单交互、状态卡片、API 调用与错误提示、灰度/回滚操作及导出按钮。
+    ]]></standards>
+    <locations><![CDATA[
+- backend/tests/test_deployments.py
+- backend/tests/test_deployment_tasks.py
+- frontend/src/app/deployment/__tests__/DeploymentPage.test.tsx
+- frontend/src/app/deployment/__tests__/DeploymentActions.test.tsx
+    ]]></locations>
+    <ideas><![CDATA[
+- 模拟部署成功路径：创建部署→Celery 任务返回 endpoint/token→事件记录→状态变为 active。
+- 模拟评估闸门失败：尝试部署未通过评估的模型版本，断言 API 返回 422 并写入 audit。
+- 前端测试：Mock fetch 流程，验证提交表单后按钮 loading/禁用、状态卡片更新、错误提示和导出文件路径展示。
+    ]]></ideas>
+  </tests>
+</story-context>

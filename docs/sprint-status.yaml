@@ -1,0 +1,43 @@
+development_status:
+  1-1-基础登录与账号管理: done
+  1-2-工作空间与项目创建流程: done
+  1-3-角色与权限矩阵: done
+  1-4-项目总览仪表盘-基础版: done
+  2-1-多源数据导入与元数据登记: done
+  2-2-数据清洗与脱敏流水线: done
+  2-3-数据质量评估仪表盘: done
+  2-4-格式标准化与版本管理: done
+  3-1-训练方案模板库: done
+  3-2-向导式训练编排: done
+  3-3-实时监控与告警: done
+  3-4-快照-断点续训与回滚: done
+  3-5-元数据与实验管理: done
+  4-1-标准化评估套件: done
+  4-2-自动化评估流水线: done
+  4-3-报告生成与可视化: done
+  4-4-反馈与复盘记录: done
+  5-1-模型注册与版本管理: done
+  5-2-vllm-部署流水线: done
+  5-3-api-sdk-接入层: done
+  5-4-运行监控与告警: done
+  6-1-流程看板与任务指派: done
+  6-2-多人协作评论与审批: done
+  6-3-通知与集成中心: done
+  6-4-知识库与模板沉淀: done
+  epic-1: backlog
+  epic-1-retrospective: optional
+  epic-2: backlog
+  epic-2-retrospective: optional
+  epic-3: backlog
+  epic-3-retrospective: optional
+  epic-4: backlog
+  epic-4-retrospective: optional
+  epic-5: backlog
+  epic-5-retrospective: optional
+  epic-6: backlog
+  epic-6-retrospective: optional
+generated: 2025-10-28
+project: llm-finetune-platform
+project_key: llm-finetune-platform
+story_location: '{project-root}/docs/stories'
+tracking_system: file-system

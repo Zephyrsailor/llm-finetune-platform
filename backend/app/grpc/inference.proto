@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package llmft.inference;
+
+service Inference {
+  rpc Invoke (InvokeRequest) returns (InvokeResponse);
+}
+
+message InvokeRequest {
+  int32 workspace_id = 1;
+  int32 deployment_id = 2;
+  int32 model_version_id = 3;
+  repeated string inputs = 4;
+  map<string, string> parameters = 5;
+}
+
+message GeneratedOutput {
+  string output = 1;
+}
+
+message InvokeResponse {
+  repeated GeneratedOutput outputs = 1;
+  double latency_ms = 2;
+  int32 input_tokens = 3;
+  int32 output_tokens = 4;
+}

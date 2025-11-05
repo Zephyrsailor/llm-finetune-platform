@@ -1,0 +1,209 @@
+<?xml version="1.0"?>
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1.3</storyId>
+    <title>角色与权限矩阵</title>
+    <status>Ready</status>
+    <generatedAt>2025-10-29</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-1.3.md</sourceStoryPath>
+  </metadata>
+  <story>
+    <asA>安全负责人</asA>
+    <iWant>能够为工作空间定义并分配管理员、数据、训练、运维、业务审阅等角色及其权限</iWant>
+    <soThat>关键操作仅向被授权成员开放并满足审计与合规要求</soThat>
+    <tasks>
+- [ ] 角色模型与存储设计（AC#1, AC#2）  
+  - [ ] 在后端新增 `roles`、`role_permissions`、`workspace_member_roles` 模型/迁移，复用 Story 1.2 的 workspace 成员结构。[来源: docs/architecture.md]  
+  - [ ] 定义默认角色与操作集合（数据导入、训练、部署、评估、审批），并配置可扩展映射。  
+  - [ ] 更新技术文档记录角色矩阵与默认权限说明。
+- [ ] 权限校验与审计集成（AC#2, AC#3）  
+  - [ ] 扩展鉴权中间件，从 JWT/WorkspaceMembership 加载角色，校验 API / Celery /审批动作权限。  
+  - [ ] 将角色变更、权限拒绝写入 `audit_logs`，验证审计查询接口与日志可视化。  
+  - [ ] 编写 Pytest 覆盖角色变更即时生效、无权限返回 403、审计记录存在等场景。
+- [ ] 前端角色管理界面（AC#2）  
+  - [ ] 在 Settings/Workspace 管理下新增角色矩阵页面，展示角色权限、支持编辑成员绑定。  
+  - [ ] 实现角色创建/编辑表单与权限复选，操作成功后刷新并提示。  
+  - [ ] 使用 React Testing Library/Vitest 覆盖主要交互与权限提示流程。
+- [ ] 文档与运维更新（AC#1-AC#3）  
+  - [ ] 更新 docs/tech-specs 与 docs/architecture，说明角色矩阵、扩展点与审计流程。  
+  - [ ] 更新运维手册，描述权限变更影响与回滚指引。  
+  - [ ] 视需要提供批量脚本导入默认角色/权限映射。
+</tasks>
+  </story>
+  <acceptanceCriteria>
+1. 平台提供角色矩阵，覆盖管理员、数据、训练、运维、业务审阅角色，并定义其对数据导入、训练启动、部署发布、评估查看、审批等操作的权限范围。[来源: docs/epics.md]  
+2. 角色管理界面允许管理员在工作空间内创建/编辑角色并为成员分配或撤销角色，变更即时生效且记录审计日志，可在治理模块查询历史。[来源: docs/epics.md; docs/PRD.md]  
+3. 所有后端接口与前端功能均基于角色权限进行校验；未授权请求返回 403 并写入审计日志，同时预留 ABAC/SSO 扩展点满足最小权限与未来增强。[来源: docs/PRD.md; docs/architecture.md; docs/technical-decisions.md]
+</acceptanceCriteria>
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>Story 1.3</section>
+        <snippet>**Story [1.3]: 角色与权限矩阵**  
+As a security officer,  
+I want to 分配角色（管理员、数据、训练、运维、业务审阅）,  
+So that 关键操作仅向被授权成员开放。</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements</title>
+        <section>治理与协作 / 安全性</section>
+        <snippet>工作空间级权限管理、操作日志、审批流，支持多团队协作。  
+- **安全性**：数据传输与存储全程加密，提供脱敏策略、操作审计、最小权限访问。</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Decision Architecture</title>
+        <section>身份与权限</section>
+        <snippet>| 身份与权限 | 自建账号 + JWT + RBAC + MFA，留白 OIDC SSO | 2025-10-23 | E1/E6 | 满足权限矩阵与审计版本化 |</snippet>
+      </doc>
+      <doc>
+        <path>docs/technical-decisions.md</path>
+        <title>Technical Decisions</title>
+        <section>安全与合规</section>
+        <snippet>- **审计日志**：关键操作写入不可变日志并定期归档/备份。  
+- **权限模型**：以 RBAC 为主，结合属性条件（ABAC）逐步加强。</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-1.2.md</path>
+        <title>Story 1.2</title>
+        <section>Tasks</section>
+        <snippet>- [x] 权限与审计补充（AC#3）  
+  - [x] 与后续 Story 1.3（角色矩阵）对齐角色定义，预留角色扩展点。</snippet>
+      </doc>
+    </docs>
+    <code>
+      <codeArtifact>
+        <path>backend/app/models/workspace.py</path>
+        <kind>model</kind>
+        <symbol>WorkspaceMember.role</symbol>
+        <lines>32-62</lines>
+        <reason>提供成员角色字段，是角色矩阵扩展的基础。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>backend/app/repositories/workspace.py</path>
+        <kind>repository</kind>
+        <symbol>WorkspaceRepository.upsert_members</symbol>
+        <lines>53-83</lines>
+        <reason>维护工作空间成员与角色关联，需要扩展支持多角色与权限映射。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>backend/app/services/workspaces.py</path>
+        <kind>service</kind>
+        <symbol>WorkspaceService.create_workspace</symbol>
+        <lines>68-158</lines>
+        <reason>创建工作空间时默认分配 owner/member，后续角色矩阵需复用并扩展该逻辑。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>backend/app/api/auth.py</path>
+        <kind>api-router</kind>
+        <symbol>Authentication endpoints</symbol>
+        <lines>1-126</lines>
+        <reason>现有认证路由发放 JWT 并处理审计，是角色授权流程的入口。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>backend/app/services/auth.py</path>
+        <kind>service</kind>
+        <symbol>AuthService.authenticate</symbol>
+        <lines>84-126</lines>
+        <reason>认证服务签发 JWT 与刷新令牌，可扩展以携带角色信息与刷新缓存。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>backend/tests/test_auth_flow.py</path>
+        <kind>pytest</kind>
+        <symbol>Auth flow tests</symbol>
+        <lines>1-120</lines>
+        <reason>涵盖注册/登录与审计日志的测试，可作为新增角色审计测试的模板。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>frontend/src/lib/api.ts</path>
+        <kind>frontend-api-client</kind>
+        <symbol>workspaceApi</symbol>
+        <lines>52-121</lines>
+        <reason>Workspace API 封装需扩展角色管理请求及权限错误处理。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>frontend/src/app/workspaces/WorkspacesPage.tsx</path>
+        <kind>react-component</kind>
+        <symbol>WorkspacesPage</symbol>
+        <lines>1-320</lines>
+        <reason>现有工作空间页面将扩展角色矩阵视图与交互。</reason>
+      </codeArtifact>
+    </code>
+    <dependencies>
+      <ecosystem name="python">
+        <package>fastapi</package>
+        <package>sqlmodel</package>
+        <package>alembic</package>
+        <package>python-jose</package>
+        <package>passlib[argon2]</package>
+        <package>redis</package>
+      </ecosystem>
+      <ecosystem name="node">
+        <package>react</package>
+        <package>react-router-dom</package>
+        <package>@tanstack/react-query</package>
+        <package>zustand</package>
+        <package>react-hook-form</package>
+        <package>@testing-library/react</package>
+      </ecosystem>
+      <ecosystem name="tooling">
+        <package>poetry</package>
+        <package>pytest</package>
+        <package>ruff</package>
+        <package>vite</package>
+        <package>eslint</package>
+        <package>vitest</package>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+  <constraints>
+    <constraint>必须维持 RBAC 为核心并预留 ABAC / SSO 扩展点，符合最小权限原则。[docs/technical-decisions.md]</constraint>
+    <constraint>角色变更与权限被拒绝操作必须写入 `audit_logs` 以满足治理与审计要求。[docs/PRD.md]</constraint>
+    <constraint>权限校验需与 Workspace 成员关系结合，保持 Story 1.2 定义的隔离与审计策略一致。[docs/stories/story-1.2.md]</constraint>
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>GET /api/v1/workspaces/{workspace_id}/roles</name>
+      <kind>REST (planned)</kind>
+      <signature>返回工作空间所有角色及权限映射</signature>
+      <path>backend/app/api/workspaces.py</path>
+    </interface>
+    <interface>
+      <name>POST /api/v1/workspaces/{workspace_id}/roles</name>
+      <kind>REST (planned)</kind>
+      <signature>创建或更新角色（名称、描述、权限集合）</signature>
+      <path>backend/app/api/workspaces.py</path>
+    </interface>
+    <interface>
+      <name>POST /api/v1/workspaces/{workspace_id}/members/{member_id}/roles</name>
+      <kind>REST (planned)</kind>
+      <signature>为成员分配或撤销角色并记录审计日志</signature>
+      <path>backend/app/api/workspaces.py</path>
+    </interface>
+    <interface>
+      <name>check_permission</name>
+      <kind>service function (planned)</kind>
+      <signature>check_permission(operation, workspace_id, user_id) -&gt; None</signature>
+      <path>backend/app/core/security.py</path>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>后端使用 Pytest + FastAPI TestClient 校验角色权限与审计日志，前端使用 Vitest + React Testing Library 覆盖角色管理交互，遵循 docs/Python编码规范与风格指南.md。</standards>
+    <locations>
+      <location>backend/tests</location>
+      <location>frontend/src/app/settings/__tests__</location>
+      <location>docs/PRD.md#治理与协作</location>
+    </locations>
+    <ideas>
+      <idea>AC1: 验证默认角色的权限映射持久化与加载流程。</idea>
+      <idea>AC2: 集成测试角色变更后权限校验即时生效并写入审计日志。</idea>
+      <idea>AC3: 前端角色矩阵界面在无权限用户视图下显示受限操作提示。</idea>
+      <idea>边界：模拟并发角色变更与随后请求的权限一致性。</idea>
+    </ideas>
+  </tests>
+</story-context>

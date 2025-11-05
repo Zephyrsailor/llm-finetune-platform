@@ -1,0 +1,91 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>4</storyId>
+    <title>格式标准化与版本管理</title>
+    <status>In Progress</status>
+    <generatedAt>2025-10-30T15:40:00Z</generatedAt>
+    <generator>Codex Agent</generator>
+    <sourceStoryPath>docs/stories/story-2.4.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>ML 工程师</asA>
+    <iWant>将清洗并通过质量评估的数据标准化为多种格式并管理版本</iWant>
+    <soThat>训练流水线可以直接消费指定格式与版本的数据</soThat>
+    <tasks><![CDATA[
+- [ ] 后端：新增 `dataset_format_versions` 模型、仓储与 Celery 任务处理标准化转换，生成 JSONL/SFT/Parquet 占位文件并记录校验和。（AC#1）
+- [ ] 后端：实现触发转换、列出格式、下载、回滚的 API，确保 RBAC/审计日志，更新 pytest 覆盖。（AC#1, AC#2）
+- [ ] 前端：实现格式管理界面，展示格式状态、校验和与下载按钮，提供重新转换、回滚交互。（AC#3）
+- [ ] 测试/文档：完善 fixture，补充后端/前端测试；更新技术规格、UX Story 文档说明格式流程。（AC#1, AC#2, AC#3）
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 清洗+质量评估后的数据可转换为标准化格式，生成文件并记录版本号、校验和与状态。
+2. API 支持列出、下载、回滚格式版本，操作需受 RBAC 控制并写入审计日志。
+3. 前端 Data Hub 页面展示格式状态、校验和、下载链接，并支持重新转换和回滚操作。
+    ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epic 2 – Story 2.4" section="格式标准化与版本管理" snippet="转换结果自动生成版本号与校验和，支持下载与回滚。" />
+      <doc path="docs/PRD.md" title="PRD – 数据与语料工作台" section="Functional Requirements" snippet="数据工作台需提供格式转换、版本管理、下载和回滚能力。" />
+      <doc path="docs/architecture.md" title="Architecture" section="E2 数据与语料工作台" snippet="Artefact 目录与 DataHubService 负责调度转换与版本管理。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Flow 1" snippet="上传→清洗→质量评估→格式转换流程，需在控制台呈现转换状态与下载按钮。" />
+      <doc path="docs/technical-decisions.md" title="Technical Decisions" section="数据处理框架" snippet="格式转换使用 Pandas/Polars，Artefact 需可追溯。" />
+      <doc path="docs/stories/story-2.3.md" title="Story 2.3 Dev Notes" snippet="质量评估输出 summary/anomalies，为格式转换提供输入前置条件。" />
+    </docs>
+    <code>
+      <artifact path="backend/app/models/dataset.py" kind="model" symbol="DatasetVersion" lines="1-260" reason="新增格式版本模型及字段。" />
+      <artifact path="backend/app/services/data_hub.py" kind="service" symbol="DataHubService" lines="1-600" reason="整合格式转换触发、查询与导出。" />
+      <artifact path="backend/app/tasks/data_cleaning.py" kind="task" symbol="run_quality_evaluation" lines="1-460" reason="需新增格式转换 Celery 任务可复用该模块或新增。" />
+      <artifact path="backend/app/api/datasets.py" kind="api" symbol="format endpoints" lines="1-520" reason="暴露格式管理 REST 接口。" />
+      <artifact path="frontend/src/lib/api.ts" kind="api-client" symbol="qualityApi/dataHubApi" lines="1-560" reason="扩展格式标准化的前端 API。" />
+      <artifact path="frontend/src/app/data-hub" kind="component" symbol="FormatStandardizationPage.tsx" lines="new" reason="实现格式管理界面。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">
+        <package name="pandas" version="^2.2.2" optional="true" />
+        <package name="pyarrow" version="^15.0.2" optional="true" />
+      </dependency>
+      <dependency ecosystem="node">
+        <package name="react" version="^18.3.1" />
+        <package name="@tanstack/react-query" version="^5.56.2" />
+        <package name="@testing-library/react" version="^14.2.2" />
+        <package name="vitest" version="^1.6.0" />
+      </dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <item>格式转换任务需幂等；重复触发应覆盖或生成新文件并更新校验和。</item>
+    <item>仅在质量评估完成且达标后允许转换，或在界面提供警告。</item>
+    <item>导出与回滚操作必须记录审计日志并使用 RBAC 校验。</item>
+    <item>Artefact 输出需位于 `/standard/{format}/` 下，并保持与 `dataset_versions` 的关联。</item>
+    <item>前端页面需符合现有深色主题，显示格式列表、校验和、更新时间及操作按钮。</item>
+  </constraints>
+
+  <interfaces>
+    <interface name="POST /api/v1/datasets/{dataset}/versions/{version}/formats/run" kind="REST endpoint" signature="POST .../formats/run" path="backend/app/api/datasets.py" />
+    <interface name="GET /api/v1/datasets/{dataset}/versions/{version}/formats" kind="REST endpoint" signature="GET .../formats" path="backend/app/api/datasets.py" />
+    <interface name="GET /api/v1/datasets/{dataset}/versions/{version}/formats/export" kind="REST endpoint" signature="GET .../formats/export?format=jsonl" path="backend/app/api/datasets.py" />
+    <interface name="formatApi.run" kind="TypeScript function" signature="formatApi.run(datasetId, versionId, formats)" path="frontend/src/lib/api.ts" />
+  </interfaces>
+
+  <tests>
+    <standards><![CDATA[
+后端：pytest + FastAPI TestClient 验证格式转换任务、校验和、导出与回滚；前端：Vitest + RTL 覆盖页面渲染、操作按钮和下载交互。确保 SQLite + Celery eager 环境可重现转换逻辑。]]></standards>
+    <locations><![CDATA[
+backend/tests/test_dataset_formats.py (new)
+backend/tests/test_datasets.py
+frontend/src/app/data-hub/
+frontend/src/lib/
+    ]]></locations>
+    <ideas><![CDATA[
+- AC1：构造小型 cleaned 数据，运行格式转换并断言标准化文件、校验和及数据库记录。
+- AC2：调用格式列表/下载/回滚 API，验证 RBAC 与审计日志；模拟失败/重新转换场景。
+- AC3：前端测试切换版本、触发转换、展示校验和与下载按钮，mock Blob 下载。
+    ]]></ideas>
+  </tests>
+</story-context>

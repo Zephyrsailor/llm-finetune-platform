@@ -1,0 +1,170 @@
+<?xml version="1.0" ?>
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1.1</storyId>
+    <title>基础登录与账号管理</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-1.1.md</sourceStoryPath>
+  </metadata>
+  <story>
+    <asA>平台管理员</asA>
+    <iWant>平台提供安全的邮箱/密码登录与会话管理能力</iWant>
+    <soThat>团队成员能够在受控环境中访问工作空间并遵循审计要求</soThat>
+    <tasks>- [ ] 定义数据模型与迁移脚本（AC#5, AC#6）
+  - [ ] 最小化创建 `User` 与 `AuditLog` 表所需字段，并编写 Alembic 迁移验证。
+- [ ] 实现后端认证流程（AC#1-AC#6）
+  - [ ] 在 `backend/app/api/auth` 下实现注册、登录、登出、刷新、忘记密码、重置密码 API，复用 FastAPI + JWT，会话配置满足过期/注销要求。
+  - [ ] 加入基础速率限制与验证码逻辑（开发模式可打印验证码），覆盖重置密码及尝试次数。
+  - [ ] 依据 docs/Python编码规范与风格指南.md 编写 Pytest + TestClient 测试，验证主要成功/失败路径。
+- [ ] 提供前端最小界面（AC#1, AC#3, AC#4, AC#7）
+  - [ ] 在 `frontend/src/app/(auth)` 构建登录、注册、忘记密码、重置密码表单，与后端 API 对接并展示成功/失败提示。
+  - [ ] 追加必要测试（单元或端到端）覆盖表单校验与流程跳转。
+- [ ] 审计记录与文档（AC#5, AC#6）
+  - [ ] 写入登录成功/失败审计日志，包含所需字段。
+  - [ ] 更新运维文档说明速率限制、安全参数的配置来源，遵循最小实现，不引入额外系统。</tasks>
+  </story>
+  <acceptanceCriteria>1. 支持邮箱注册、登录、登出流程，密码校验至少包含长度 ≥ 8、字母与数字组合，认证失败时返回泛化错误消息避免枚举账号。[来源: docs/epics.md]
+2. 使用 Access + Refresh Token（或等价 Session）管理会话，配置过期策略并提供手动注销接口，同时更新最后登录时间。[来源: docs/epics.md]
+3. 注册与“忘记密码”流程要求邮件验证码验证身份，验证码需设置过期时间与错误尝试上限。[来源: docs/epics.md]
+4. 完成密码重置流程：发送邮件链接、校验验证码后允许设置新密码，重置后旧 Refresh Token 立即失效。[来源: docs/epics.md]
+5. 在审计日志（`audit_logs` 表或等价实现）记录登录成功/失败事件，至少包含用户标识、IP、User-Agent、时间戳与事件类型。[来源: docs/epics.md]
+6. 密码采用 Argon2（或 bcrypt）哈希存储，登录接口具备速率限制或指数退避，满足平台安全与防爆破要求。[来源: docs/epics.md; docs/PRD.md]
+7. 提供匹配前端的 REST API（`/api/v1/auth/register|login|logout|refresh|password-reset` 等），并实现登录、注册、忘记密码、重置密码页面及成功/失败反馈。[来源: docs/epics.md; docs/architecture.md]</acceptanceCriteria>
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epics Breakdown</title>
+        <section>Epic 1：平台基础与访问控制</section>
+        <snippet>I want users to 使用邮箱/密码登录并安全维护会话, So that 团队成员可以在受控环境下访问平台。 **Acceptance Criteria:** 1. 支持邮箱+密码注册、登录、退出，密码需满足最小长度与复杂度要求。 2. 登录流程包含验证码或邮箱验证，失败时返回明确错误并记录审计日志。 3. Session/Token 管理（JWT 或服务器会话）具备过期策略与手动注销；提供“忘记密码/重置”流程。 4. 基础审计字段（最后登录时间、来源 IP）可在管理员界面查看。</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements</title>
+        <section>Non-Functional Requirements</section>
+        <snippet>- **安全性**：数据传输与存储全程加密，提供脱敏策略、操作审计、最小权限访问。 - **可靠性**：训练任务失败具备自动重试与手动恢复流程，服务 SLA ≥ 99.5%。 - **可扩展性**：支持按需扩展 GPU 集群，推理服务可水平扩容。 - **可观察性**：统一日志、指标、链路追踪，支持问题回溯。 - **可用性**：提供向导式界面、默认参数、操作提示，新用户在 1 天内完成培训。</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Decision Architecture</title>
+        <section>Decision Summary</section>
+        <snippet>| 身份与权限 | 自建账号 + JWT + RBAC + MFA，留白 OIDC SSO | 2025-10-23 | E1/E6 | 满足权限矩阵与审计版本化 |</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-specs/platform-core-modules.md</path>
+        <title>平台核心模块技术规格</title>
+        <section>AuthService（Story 1.1 底座）</section>
+        <snippet>&gt; 说明：文档定义核心后端模块的职责、接口、数据模型与异常处理策略，供 `create-story` 工作流和实施阶段直接引用。 --- ## 1. AuthService（Story 1.1 底座） - **职责**：账号注册、登录、会话刷新、登出、密码重置；记录安全审计日志。 - **主要接口** - `POST /api/v1/auth/register` → 创建用户、发送验证邮件。 - `POST /api/v1/auth/login` → 返回 Access/Refresh Token。 - `POST /api/v1/auth/logout` → 注销并失效 Refresh Token。 - `POST /api/v1/auth/refresh` → 刷新会话。 - `POST /api/v1/auth/password-reset/request` / `POST /api/v1/auth/password-reset/confirm`. - **数据模型** - `users(id, email, password_hash, status, last_login_at, created_at, updated_at)`。 - `audit_logs(id, user_id, event_type, ip_address, user_agent, payload_json, created_at)`。 - `refresh_tokens(id, user_id, token_hash, expires_at, revoked)`。 - **安全与异常** - 密码使用 Argon2；刷新流程校验 Token 是否吊销。 - 登录失败 5 次内指数退避，超过阈值写入 `security_events`。</snippet>
+      </doc>
+      <doc>
+        <path>docs/implementation-readiness-report-2025-10-28.md</path>
+        <title>Implementation Readiness Report (2025-10-28)</title>
+        <section>Documents Reviewed</section>
+        <snippet>- **Stories**：`story-1.1.md`（基础登录，2025-10-28 09:53）、`story-1.2.md`（工作空间/项目，2025-10-28 10:46）。 - **Workflow Status（docs/bmm-workflow-status.md，2025-10-28 10:46）** – 记录 Phase 3 状态与故事顺序。 - **历史参考**：`implementation-readiness-report-2025-10-23.md`、`product-brief-llm-finetune-platform-2025-10-23.md`、`brainstorming-session-results-2025-10-23.md`。 ### Document Analysis Summary - **PRD** – 定义数据工作台、微调执行、部署服务、评估中心、治理协作五大功能域，并给出安全、可靠性、性能（7B/12h、推理 P95&lt;800ms）、可观察性与可用性等非功能指标；Out of Scope 明确排除 RLHF、AutoML、标注平台等。 - **Architecture + Technical Decisions** – 采用 React+Vite+Tailwind+shadcn/ui + FastAPI+Celery+PostgreSQL+Redis + vLLM 的三层架构；部署基于 Docker Compose + NVIDIA Container Toolkit；提供 Training Log SSE、Redis GPU 锁、artefact 清理策略与迁移到 S3 的演进路径。 - **Tech Specs / Runtime Operations** – 细化核心服务接口、数据模型、异常处理及运维脚本，并记录 create-story SOP，确保实施时有可复用的工程化指南。</snippet>
+      </doc>
+    </docs>
+    <code>
+      <codeArtifact>
+        <path>backend/app/api/auth</path>
+        <kind>planned-module</kind>
+        <symbol>AuthRouter</symbol>
+        <lines>N/A</lines>
+        <reason>architecture.md 规划身份与权限路由目录；当前仓库尚未提交该模块。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>backend/app/core/security.py</path>
+        <kind>planned-module</kind>
+        <symbol>SecurityConfig</symbol>
+        <lines>N/A</lines>
+        <reason>architecture.md 定义 core/security 负责 JWT、密码哈希与依赖注入；代码需后续创建。</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>frontend/src/app/(auth)</path>
+        <kind>planned-frontend</kind>
+        <symbol>AuthPages</symbol>
+        <lines>N/A</lines>
+        <reason>architecture.md 项目结构要求该目录承载登录/注册界面，目前尚未搭建。</reason>
+      </codeArtifact>
+    </code>
+    <dependencies>
+      <ecosystem name="python">
+        <package>FastAPI（architecture.md）</package>
+        <package>SQLModel + Alembic（architecture.md）</package>
+        <package>Celery + Redis（architecture.md）</package>
+        <package>argon2-cffi（docs/tech-specs/platform-core-modules.md）</package>
+      </ecosystem>
+      <ecosystem name="node">
+        <package>React 18 + Vite + Tailwind + shadcn/ui（architecture.md）</package>
+        <package>TanStack Query + Zustand（architecture.md）</package>
+      </ecosystem>
+      <ecosystem name="infrastructure">
+        <package>PostgreSQL 15.6（architecture.md）</package>
+        <package>Docker Compose + NVIDIA Container Toolkit（architecture.md）</package>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+  <constraints>
+    <constraint>密码哈希必须使用 Argon2（或 bcrypt），并通过统一安全配置复用；刷新流程须校验 Token 是否吊销。[来源: docs/tech-specs/platform-core-modules.md]</constraint>
+    <constraint>登录失败需指数退避，超过阈值写入 security_events/audit_logs，防止爆破攻击。[来源: docs/tech-specs/platform-core-modules.md]</constraint>
+    <constraint>所有认证接口返回统一 JSON {code, message}，与平台 API 规范保持一致。[来源: docs/tech-specs/platform-core-modules.md]</constraint>
+    <constraint>实现需遵守 docs/Python编码规范与风格指南.md，包含类型注解、导入顺序与测试约定。</constraint>
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>POST /api/v1/auth/register</name>
+      <kind>REST</kind>
+      <signature>POST /api/v1/auth/register → 创建用户、发送验证邮件</signature>
+      <path>docs/tech-specs/platform-core-modules.md#1-authservice（story-1.1 底座）</path>
+    </interface>
+    <interface>
+      <name>POST /api/v1/auth/login</name>
+      <kind>REST</kind>
+      <signature>POST /api/v1/auth/login → 返回 Access/Refresh Token</signature>
+      <path>docs/tech-specs/platform-core-modules.md#1-authservice（story-1.1 底座）</path>
+    </interface>
+    <interface>
+      <name>POST /api/v1/auth/logout</name>
+      <kind>REST</kind>
+      <signature>POST /api/v1/auth/logout → 注销并吊销 Refresh Token</signature>
+      <path>docs/tech-specs/platform-core-modules.md#1-authservice（story-1.1 底座）</path>
+    </interface>
+    <interface>
+      <name>POST /api/v1/auth/refresh</name>
+      <kind>REST</kind>
+      <signature>POST /api/v1/auth/refresh → 刷新会话</signature>
+      <path>docs/tech-specs/platform-core-modules.md#1-authservice（story-1.1 底座）</path>
+    </interface>
+    <interface>
+      <name>POST /api/v1/auth/password-reset/request</name>
+      <kind>REST</kind>
+      <signature>POST /api/v1/auth/password-reset/request → 触发验证码邮件</signature>
+      <path>docs/tech-specs/platform-core-modules.md#1-authservice（story-1.1 底座）</path>
+    </interface>
+    <interface>
+      <name>POST /api/v1/auth/password-reset/confirm</name>
+      <kind>REST</kind>
+      <signature>POST /api/v1/auth/password-reset/confirm → 验证验证码并设置新密码</signature>
+      <path>docs/tech-specs/platform-core-modules.md#1-authservice（story-1.1 底座）</path>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>
+      <item>后端使用 Pytest + FastAPI TestClient；认证场景需覆盖成功、失败、刷新、速率限制与验证码流程。 前端采用 React Testing Library 或 Cypress，验证表单校验、状态提示与会话刷新行为。 审计日志与安全告警应纳入测试覆盖，符合 architecture.md 的运维要求。</item>
+    </standards>
+    <locations>
+      <location>backend/tests</location>
+      <location>frontend/src/app/(auth)</location>
+      <location>docs/tech-specs/platform-core-modules.md#1-authservice（story-1.1 底座）</location>
+    </locations>
+    <ideas>
+      <idea>AC1: 注册/登录/登出流程，错误凭证返回泛化错误并不暴露账号。</idea>
+      <idea>AC2: Refresh Token 在过期或注销后立即失效，刷新成功时更新最后登录时间。</idea>
+      <idea>AC3: 忘记密码验证码具备过期与尝试次数限制，错误路径写入审计日志。</idea>
+      <idea>AC6: 多次登录失败触发速率限制，并验证密码哈希使用 Argon2。</idea>
+      <idea>AC7: 前端登录/注册页与 REST API 协同，成功/失败提示与状态同步。</idea>
+    </ideas>
+  </tests>
+</story-context>

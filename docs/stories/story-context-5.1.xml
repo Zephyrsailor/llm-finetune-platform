@@ -1,0 +1,88 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>5</epicId>
+    <storyId>1</storyId>
+    <title>模型注册与版本管理</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-31T17:10:00Z</generatedAt>
+    <generator>BMAD Story Context (manual draft)</generator>
+    <sourceStoryPath>docs/stories/story-5.1.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>发布经理</asA>
+    <iWant>将训练完成的模型注册到平台模型仓库并维护版本状态</iWant>
+    <soThat>可以管控上线合规性、追踪评估结果并支持回滚</soThat>
+    <tasks><![CDATA[
+- [ ] 新建 ModelRegistry 数据模型/迁移：模型实体、版本表、评估/部署引用、状态与备注。
+- [ ] 实现模型注册/版本 API，校验 RBAC 与审计日志，暴露列表/详情/状态切换接口。
+- [ ] 集成 Evaluation Gate：promotion 前校验最新评估结果，阻断未通过评估的模型。
+- [ ] 构建模型 artefact 存储与事件通知（Redis Stream/audit_logs）供部署模块消费。
+- [ ] 前端模型仓库页面：列表、版本时间轴、详情抽屉、状态切换与导出功能。
+- [ ] 后端/前端测试与文档更新，覆盖 CRUD、状态流转、UI 交互、导出、评估闸门。
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 登记模型元数据、评估引用、部署状态并遵循工作空间权限。
+2. 模型版本支持候选/生产/废弃状态机，记录操作者、时间戳、备注并关联部署摘要。
+3. 推升为生产前必须通过评估闸门，否则阻断并提示；事件广播供部署/通知模块消费。
+4. 前端模型仓库提供列表、过滤、版本详情、状态切换与导出，兼容深色主题与可访问性。
+  ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epics" section="Story [5.1]" snippet="模型注册与版本管理的用户故事及三条验收标准。" />
+      <doc path="docs/PRD.md" title="PRD" section="Functional Requirements" snippet="平台需保存模型版本、训练参数、日志，支持多版本管理与回滚。" />
+      <doc path="docs/architecture.md" title="Architecture" section="Epic to Architecture Mapping / Evaluation Gate Pattern" snippet="E5 模块包含 ModelRegistryService，部署前需通过评估闸门。" />
+      <doc path="docs/tech-specs/platform-core-modules.md" title="Platform Core Modules" section="Service Patterns / Artefact 管理" snippet="推荐使用 Domain Service + Repository、统一 artefact 目录、审计与事件策略。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Flow 3 / Component Library" snippet="部署流程与模型版本时间轴、状态标签、详情联动的 UI 要求。" />
+      <doc path="docs/product-brief-llm-finetune-platform-2025-10-23.md" title="Product Brief" section="Platform Requirements / Architecture Considerations" snippet="模型 artefact 统一存储并预留外部仓库/CI 接口。" />
+    </docs>
+    <code>
+      <code path="backend/app/services/evaluation.py" kind="service" symbol="EvaluationService" lines="440-780" reason="复用评估闸门、指标校验逻辑、审计事件接口。" />
+      <code path="backend/app/services/training.py" kind="service" symbol="TrainingService" lines="320-420" reason="获取训练运行元数据与 artefact 路径。" />
+      <code path="backend/app/services/evaluation.py" kind="service" symbol="_knowledge_directory" lines="660-720" reason="参考知识库导出/artefact 目录生成模式，复用存储策略。" />
+      <code path="frontend/src/app/evaluation/EvaluationReportPage.tsx" kind="component" symbol="EvaluationReportPage" lines="1-260" reason="提供模型评估详情链接与交互模式参考。" />
+      <code path="frontend/src/app/training/TrainingWizardPage.tsx" kind="component" symbol="TrainingWizardPage" lines="1-420" reason="复用训练运行摘要与数据绑定模式。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">FastAPI, SQLModel, Alembic, Celery</dependency>
+      <dependency ecosystem="frontend">React, TypeScript, TanStack Query, Tailwind CSS</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints><![CDATA[
+- 所有模型注册/状态更新操作需验证 `approval_manage` 或 `deployment_manage` 权限并写入 audit_logs。
+- 模型 artefact 必须落至统一目录 `/var/lib/llmft/models/{workspace}/{project}/{model_id}/v{n}`，提供锁定/保留标记避免清理任务误删。
+- Promotion 必须引用最近一次通过的评估任务；若无对应评估或状态为失败，API 返回 400 并禁止状态变更。
+- 事件通知通过 Redis Stream / audit logs 广播，部署模块订阅 `model.version.promoted`、`model.version.demoted`、`model.version.deprecated`。
+- 前端需遵循暗色主题与可访问性规范（对比度、键盘导航、ARIA 标签），导出功能提供 JSON/Markdown 两种格式。
+  ]]></constraints>
+
+  <interfaces>
+    <interface name="list_models" kind="REST" signature="GET /api/v1/models?workspace_id=&project_id=&status=" path="backend/app/api/model_registry.py" />
+    <interface name="create_model" kind="REST" signature="POST /api/v1/models" path="backend/app/api/model_registry.py" />
+    <interface name="create_model_version" kind="REST" signature="POST /api/v1/models/{model_id}/versions" path="backend/app/api/model_registry.py" />
+    <interface name="promote_model_version" kind="REST" signature="PATCH /api/v1/models/{model_id}/versions/{version_id}/status" path="backend/app/api/model_registry.py" />
+    <interface name="export_model_metadata" kind="REST" signature="POST /api/v1/models/{model_id}/versions/{version_id}:export" path="backend/app/api/model_registry.py" />
+  </interfaces>
+
+  <tests>
+    <standards><![CDATA[
+- 后端使用 pytest + SQLModel 测试模型注册、版本流转、评估闸门拒绝、审计事件与事件广播。
+- 前端使用 Vitest + React Testing Library 覆盖列表过滤、详情展示、状态切换交互与导出逻辑。
+    ]]></standards>
+    <locations><![CDATA[
+- backend/tests/test_model_registry.py
+- backend/tests/test_deployment_integration.py
+- frontend/src/app/models/__tests__/ModelRegistryPage.test.tsx
+- frontend/src/app/models/__tests__/ModelVersionTimeline.test.tsx
+    ]]></locations>
+    <ideas><![CDATA[
+- 模拟评估失败的模型版本尝试 promotion，确认 API 返回 400 并记录 audit 事件。
+- 测试模型版本状态在 candidate→production→deprecated 流转及回退情形，验证事件与日志准确。
+- 前端测试中 mock TanStack Query 返回多个模型版本，确保过滤、导出与详情抽屉状态准确同步。
+    ]]></ideas>
+  </tests>
+</story-context>

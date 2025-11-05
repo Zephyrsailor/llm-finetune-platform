@@ -1,0 +1,97 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>3</storyId>
+    <title>实时监控与告警</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-31T18:10:00Z</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-3.3.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>运维工程师</asA>
+    <iWant>实时观察训练任务的核心指标并配置阈值告警</iWant>
+    <soThat>在训练异常或资源不足时能够立即响应并记录处理情况</soThat>
+    <tasks><![CDATA[
+- [ ] 后端：扩展 TrainingService/Celery 任务收集指标，新增阈值策略模型与告警记录（含审计日志），并通过 SSE/WebSocket 或轮询接口推送最新指标与告警状态。
+  - [ ] 定义指标采集器（loss/perplexity/显存/吞吐）与阈值计算服务，支持 per-run/全局策略。
+  - [ ] 新增 API：获取指标历史、创建/更新阈值策略、导出 CSV/JSON、告警状态变更；保证 RBAC 与审计日志覆盖。
+- [ ] 后端：实现告警通知占位流程（邮件/IM mock 或日志事件），确保触发后写入 `training_alerts` 表并关联 `training_runs`，供后续协作模块扩展。
+- [ ] 前端：在 Training 模块新增“实时监控”页面，渲染实时图表、告警列表与阈值配置表单，支持 SSE 订阅与回退轮询，并提供导出与跳转日志入口。
+- [ ] 前端：实现告警处理流（标记处理中/已解决）、过滤器与空状态提示，确保响应式布局和可访问性要求。
+- [ ] 测试与文档：新增后端 pytest（指标采集、阈值触发、通知记录、导出）、前端 Vitest/Cypress（阈值配置、告警渲染、导出动作）；更新架构/UX 文档监控章节、补充运维手册中的阈值脚本说明。
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 训练任务的 loss、困惑度、显存占用、吞吐等指标以秒级/任务周期实时刷新，支持设置阈值策略（>=、<=、趋势）并在触发时通过系统通知渠道（邮件/IM 占位实现）告知相关人员。
+2. 指标与告警事件需持久化，可从监控页面导出 CSV/JSON，记录触发时间、阈值、处理状态，并关联对应 `training_runs`/`training_jobs` 以支持追溯与统计分析。
+3. 监控页面展示任务列表、实时图表与告警时间线，支持按工作空间/项目过滤、追踪告警处理进度（已触发、处理中、已解决），并提供跳转至 Training Log 的入口以查看原始日志上下文。
+    ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epic 3 – Story 3.3" section="Story [3.3]: 实时监控与告警" snippet="故事要求训练指标实时刷新，允许配置阈值触发邮件或消息通知，并记录告警处理进度。" />
+      <doc path="docs/PRD.md" title="PRD – 微调执行引擎" section="Functional Requirements" snippet="微调执行引擎需实时监控 loss、困惑度、显存与吞吐，并提供告警阈值及通知能力。" />
+      <doc path="docs/architecture.md" title="Architecture" section="Technology Stack – Observability" snippet="架构采用 Python logging 搭配后端 SSE/WebSocket 输出训练日志，前端 Training Log 面板实时展示，并预留 Prometheus/Grafana 升级路线。" />
+      <doc path="docs/tech-specs/platform-core-modules.md" title="Platform Core Modules" section="TrainingService" snippet="TrainingService 定义 training_jobs、training_runs、training_events 数据模型与 API，用于追踪训练状态、指标和日志。" />
+      <doc path="docs/tech-specs/runtime-operations.md" title="Runtime Operations" section="训练日志 SSE 服务示例" snippet="运维脚本示例展示如何通过 SSE 推送训练日志并对敏感 token 进行脱敏，提供前端订阅模式。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Component Library and Design System" snippet="UX 规范规划了实时监控图表组件，用折线图和数值卡展示 loss 与困惑度，并支持自定义阈值与数据导出。" />
+    </docs>
+    <code>
+      <artifact path="backend/app/models/training.py" kind="model" symbol="TrainingRun / TrainingEvent" lines="69-176" reason="现有训练运行与事件模型存储指标和日志，新监控需在此扩展指标快照与告警关联。" />
+      <artifact path="backend/app/services/training.py" kind="service" symbol="TrainingService.create_job" lines="268-375" reason="服务层负责创建训练任务并回查最新运行，后续的指标拉取与告警统计应复用该生命周期逻辑。" />
+      <artifact path="backend/app/tasks/training.py" kind="task" symbol="training.run_job" lines="19-83" reason="Celery 任务在训练过程中写入 TrainingEvent 与 metrics_json，是实时指标采集与告警触发的入口。" />
+      <artifact path="backend/app/repositories/training.py" kind="repository" symbol="TrainingRunRepository / TrainingEventRepository" lines="151-220" reason="仓储封装了训练运行与事件的查询与更新，将为指标历史和告警查询提供基础。" />
+      <artifact path="backend/app/api/training.py" kind="api" symbol="GET /v1/training/jobs/{job_id}" lines="248-259" reason="现有 API 返回最新训练运行和指标，新监控接口应与其保持一致并补充实时数据。" />
+      <artifact path="frontend/src/lib/api.ts" kind="client" symbol="trainingApi.getJob" lines="769-793" reason="前端 API 客户端已经封装训练任务查询，新的监控页面可在此基础上扩展指标与告警调用。" />
+      <artifact path="frontend/src/app/training/TrainingWizardPage.tsx" kind="component" symbol="Latest training job summary" lines="745-778" reason="向导页面展示了最新训练任务及指标渲染模式，可复用该布局连接到监控视图。" />
+      <artifact path="backend/tests/test_training.py" kind="test" symbol="test_training_template_and_job_flow" lines="100-148" reason="现有训练集成测试覆盖任务生命周期，可扩展验证指标记录与告警触发场景。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">
+        <package name="fastapi" version="^0.111.0" />
+        <package name="celery" version="^5.4.0" />
+        <package name="redis" version="^5.0.7" />
+        <package name="sqlmodel" version="^0.0.21" />
+        <package name="uvicorn" version="^0.30.0" optional="true" />
+      </dependency>
+      <dependency ecosystem="node">
+        <package name="@tanstack/react-query" version="^5.56.2" />
+        <package name="react-router-dom" version="^6.25.1" />
+        <package name="zustand" version="^4.5.5" />
+        <package name="lucide-react" version="^0.459.0" optional="true" />
+      </dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <item>监控与告警必须复用 TrainingRun/TrainingEvent 数据模型，并将新指标或告警记录关联到现有训练运行。</item>
+    <item>告警触发、确认与解除需经过 PermissionService 校验（training_launch 或 approval_manage 权限）并写入 audit_logs 以便治理追踪。</item>
+    <item>指标与告警导出文件必须遵循 `/var/lib/llmft/training/{workspace}/{project}/runs/{run_id}` 目录结构，便于既有清理脚本管理。</item>
+    <item>通知实现应兼容 NotificationHub 注册流程，避免绕过统一的外部渠道与治理能力。</item>
+    <item>SSE 或日志流需按照运维示例对 token 等敏感字段脱敏，防止泄露凭证。</item>
+  </constraints>
+
+  <interfaces>
+    <interface name="GET /api/v1/training/jobs/{job_id}" kind="REST endpoint" signature="retrieve training job with latest run" path="backend/app/api/training.py" />
+    <interface name="training.run_job" kind="Celery task" signature="run_job(job_id)" path="backend/app/tasks/training.py" />
+    <interface name="trainingApi.getJob" kind="TypeScript client" signature="trainingApi.getJob(jobId)" path="frontend/src/lib/api.ts" />
+  </interfaces>
+
+  <tests>
+    <standards><![CDATA[
+后端沿用 pytest + FastAPI TestClient（Celery eager 模式）验证训练与告警逻辑；前端使用 Vitest + Testing Library + jsdom 覆盖实时监控页面和阈值配置交互。]]></standards>
+    <locations><![CDATA[
+backend/tests/test_training.py
+backend/tests/test_training_wizard.py
+frontend/src/app/training/TrainingWizardPage.test.tsx
+    ]]></locations>
+    <ideas><![CDATA[
+- AC1：模拟训练任务产生的指标超过阈值，断言告警记录写入数据库并触发通知占位事件。
+- AC2：调用指标与告警导出接口，验证导出内容、文件格式与筛选参数生效。
+- AC3：前端测试订阅伪造的 EventSource/轮询响应，确认监控页面更新图表、显示告警时间线并包含跳转 Training Log 的链接。
+    ]]></ideas>
+  </tests>
+</story-context>

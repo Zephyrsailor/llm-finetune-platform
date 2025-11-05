@@ -1,0 +1,80 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>4</epicId>
+    <storyId>1</storyId>
+    <title>标准化评估套件</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-31T12:10:00Z</generatedAt>
+    <generator>BMAD Story Context Workflow (manual execution)</generator>
+    <sourceStoryPath>docs/stories/story-4.1.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>QA 主管</asA>
+    <iWant>选择默认测试集或上传定制样本并复用统一评估模板</iWant>
+    <soThat>在训练前后对模型效果进行一致、可追溯的量化</soThat>
+    <tasks><![CDATA[
+- [ ] 后端（AC#1）：实现评估模板元数据模型、Repository、Service 与 API；种子内置问答/对话/分类模板，并在 Celery `EvaluationRunner` 中加载。
+- [ ] 后端（AC#2）：评估任务创建 API 支持上传/引用测试集，持久化 artefact 至 `/var/lib/llmft/{workspace}/{project}/evaluations/{run}`，写入审计日志。
+- [ ] 后端（AC#3）：评估任务与训练 run 关联，完成后记录指标、报告路径，暴露查询与导出接口并校验 `evaluation_view` 权限。
+- [ ] 前端：在 Evaluation 模块新增“标准化评估套件”页面（模板选择、训练绑定、测试集上传、状态追踪、导出按钮），满足 UX/无障碍要求。
+- [ ] 测试与文档：补充后端 pytest/Celery 集成、前端交互测试；更新 architecture.md、UX 规范与运行手册中的评估章节。
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 平台内置评估模板，用户可选择场景并查看指标脚本说明。
+2. 支持上传或引用定制测试集，评估 artefact 版本化存储并记录来源。
+3. 评估任务自动关联训练运行，输出指标/报告可在 UI 和导出接口访问，受 `evaluation_view` 权限控制。
+  ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epics" section="Story [4.1]" snippet="描述评估模板、定制测试集、训练关联的三条验收标准。" />
+      <doc path="docs/PRD.md" title="PRD" section="4. 评估与监控中心" snippet="要求评估与训练联动、可导出报告、作为质量闸门。" />
+      <doc path="docs/architecture.md" title="Architecture" section="Evaluation Runner" snippet="列出 EvaluationRunner、ReportBuilder、FeedbackService 组件与 Celery 模式。" />
+      <doc path="docs/tech-specs/platform-core-modules.md" title="Platform Core Modules" section="Artefact 目录与权限" snippet="定义 `/var/lib/llmft/{workspace}/{project}/{type}` 结构及 evaluations 目录。" />
+      <doc path="docs/tech-specs/runtime-operations.md" title="Runtime Operations" section="权限与运维" snippet="罗列 evaluation_view 权限、磁盘清理脚本等运维约束。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Screen Layout 3: Evaluation Report" snippet="规定评估报告布局、导出交互与可访问性要求。" />
+      <doc path="docs/implementation-readiness-report-2025-10-23.md" title="Implementation Readiness" section="Immediate Actions" snippet="强调在评估/报告中满足 WCAG 2.1 AA，可作为验收标准补充。" />
+    </docs>
+    <code>
+      <code path="backend/app/models/dataset.py" kind="model" symbol="QualityEvaluationJob" lines="215-256" reason="可参考现有质量评估任务的状态/artefact 存储模式。" />
+      <code path="backend/app/tasks/data_cleaning.py" kind="task" symbol="Quality evaluation pipeline" lines="442-520" reason="展示 Celery 任务如何调度评估与写入 artefact，可复用模式。" />
+      <code path="backend/app/services/training.py" kind="service" symbol="TrainingService" lines="300-360" reason="需在评估任务中引用训练 Run 元数据并保持一致的审计策略。" />
+      <code path="frontend/src/app/training/TrainingWizardPage.tsx" kind="component" symbol="Training Wizard" lines="1-200" reason="前端可复用向导式交互与 TanStack Query 缓存模式。" />
+      <code path="frontend/src/app/training/TrainingMonitorPage.tsx" kind="component" symbol="Training Monitor" lines="1-420" reason="参考指标展示、导出交互与权限提示的 UI 模式。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">fastapi, celery, redis, sqlmodel, sqlalchemy</dependency>
+      <dependency ecosystem="frontend">@tanstack/react-query, react, vite, tailwindcss</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints><![CDATA[
+- 所有评估 artefact 存储于 `/var/lib/llmft/{workspace}/{project}/evaluations/{run_id}`，遵循 Runtime Operations 的监控与清理策略。
+- 评估任务必须通过 Celery/Redis 异步执行，状态写入数据库并记录审计事件；禁止使用临时 stub。
+- API/导出需强制 `evaluation_view` 权限校验，并在审计日志中记录调用者信息。
+- 前端 UI 需满足 UX 规范与 WCAG 2.1 AA，对比度、键盘可达性与状态提示不可省略。
+  ]]></constraints>
+
+  <interfaces>
+    <interface name="create_evaluation" kind="REST" signature="POST /api/v1/evaluations" path="backend/app/api/evaluation.py#TBD" />
+    <interface name="get_evaluation" kind="REST" signature="GET /api/v1/evaluations/{id}" path="backend/app/api/evaluation.py#TBD" />
+    <interface name="export_evaluation" kind="REST" signature="GET /api/v1/evaluations/{id}/export" path="backend/app/api/evaluation.py#TBD" />
+  </interfaces>
+
+  <tests>
+    <standards><![CDATA[后端使用 pytest + SQLModel (SQLite) 验证模板 CRUD、评估任务、权限校验；Celery 任务采用 eager 模式集成测试。前端使用 Vitest + Testing Library 覆盖模板选择、训练绑定、上传流程与无障碍提示。]]></standards>
+    <locations><![CDATA[
+- backend/tests/test_evaluations.py (新增)
+- backend/tests/test_training.py（扩展）
+- frontend/src/app/evaluation/__tests__/
+    ]]></locations>
+    <ideas><![CDATA[
+- 用模拟模板/测试集数据创建评估任务，断言 artefact 路径、状态流转与审计日志。
+- 模拟训练 run 触发评估，检查 Evaluation Gate 需要的指标结构是否完整。
+- 前端测试覆盖键盘导航、导出按钮可达性、权限错误提示。
+    ]]></ideas>
+  </tests>
+</story-context>

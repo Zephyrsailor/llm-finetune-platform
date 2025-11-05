@@ -1,0 +1,97 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>1</storyId>
+    <title>多源数据导入与元数据登记</title>
+    <status>Draft</status>
+    <generatedAt>2025-10-30T01:10:45Z</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-2.1.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>数据工程师</asA>
+    <iWant>能够通过文件上传或对象存储指针将语料导入平台并登记完整元数据</iWant>
+    <soThat>团队在统一的数据工作台中追踪数据来源、触发清洗并为后续训练做好准备</soThat>
+    <tasks><![CDATA[
+- [ ] 后端：新增 `backend/app/api/datasets.py`，实现 `POST /api/v1/datasets` 支持多源导入与元数据校验，委托 `DataHubService.create_dataset` 返回 `dataset_id`。（AC#1, AC#2）
+  - [ ] `DataHubService.create_dataset`：持久化 `datasets` 记录、写入 artefact 目录或外部 URI，记录 `audit_logs` 并在超限时抛出 `DatasetSizeExceededError`。（AC#1, AC#2）
+- [ ] 后端：实现 `POST /api/v1/datasets/{id}/versions` 创建版本记录并调度 Celery 清洗任务，失败时同步更新 `data_cleaning_jobs` 状态与 `logs_path`。（AC#3）
+  - [ ] 在 `backend/app/tasks/data_cleaning.py` 定义 Celery 任务入口，确保可执行并落日志，为后续清洗逻辑扩展提供真实骨架。（AC#3）
+- [ ] 前端：扩展 `frontend/src/lib/api.ts` 提供 `dataHubApi.createDataset` / `createVersion`，在 `frontend/src/app/data-hub/DatasetUploadPage.tsx` 创建多源上传表单与进度反馈，提交后提示清洗入口。（AC#1, AC#2, AC#3）
+  - [ ] 编写 `DatasetUploadPage.test.tsx`，覆盖表单校验、文件上传模拟、失败提示与触发清洗调用流程。（AC#1, AC#3）
+- [ ] 文档：更新 `docs/tech-specs/platform-core-modules.md` DataHubService 章节及 `docs/ux-specification.md` 数据上传交互描述，确保接口字段与前端流程一致。（AC#2, AC#3）
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. API 支持本地文件上传、对象存储 URL/预签名地址或已有数据集引用创建语料，成功时写入 `datasets` 并返回 `dataset_id`；若文件超出配置阈值需返回明确错误与处置建议。[来源: docs/epics.md:93-101; docs/tech-specs/platform-core-modules.md:31-44]
+2. 数据集登记过程记录来源类型、上传者、时间戳、数据类型、文件大小、标签备注等元数据，并写入 `audit_logs`，确保可追溯性与合规审计。[来源: docs/PRD.md:32-35; docs/architecture.md:150-176]
+3. 上传完成后可立即调用 `POST /api/v1/datasets/{id}/versions` 触发清洗队列，返回版本标识与作业状态；任务通过 Celery 接入真实处理入口，失败时写入 `data_cleaning_jobs` 和告警日志，不得使用 mock/stub。[来源: docs/tech-specs/platform-core-modules.md:32-44; docs/ux-specification.md:100-113]
+    ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epic 2 – 数据与语料工作台 MVP" section="Story [2.1]: 多源数据导入与元数据登记" snippet="Story [2.1] 规定数据工程师需要通过上传或对象存储指针导入语料，并给出了记录元数据与断点续传的三条验收标准。" />
+      <doc path="docs/PRD.md" title="Product Requirements Document" section="Functional Requirements – 数据与语料工作台" snippet="PRD 要求数据工作台支持多源导入、记录来源元数据，并在后续提供清洗与质量评估能力，为后续流程奠定基础。" />
+      <doc path="docs/tech-specs/platform-core-modules.md" title="平台核心模块技术规格" section="DataHubService" snippet="DataHubService 定义了 /api/v1/datasets 与 /api/v1/datasets/{id}/versions 接口、对应数据模型以及 artefact 目录结构与异常处理流程。" />
+      <doc path="docs/architecture.md" title="Decision Architecture" section="API Contracts & Security Architecture" snippet="架构文档列出了 datasets 相关 REST 接口，并强调所有操作需带审计字段、遵循 JWT 鉴权与工作空间 RBAC 控制。" />
+      <doc path="docs/ux-specification.md" title="UX/UI Specification" section="Flow 1：导入语料并完成数据准备" snippet="导入流程的用户旅程展示了从上传或配置对象存储、填写元数据到启动清洗的步骤，为前端表单与提示提供参考。" />
+      <doc path="docs/technical-decisions.md" title="技术决策记录" section="数据与存储" snippet="技术决策记录指出语料与模型 artefact 统一存放在本地目录、结合 PostgreSQL 元数据与审计日志，预留迁移到 S3/OSS 的空间。" />
+    </docs>
+    <code>
+      <artifact path="backend/app/api/router.py" kind="router" symbol="api_router.include_router" lines="1-40" reason="新的 datasets 路由需要在聚合路由中注册，遵循现有 API 模块组织方式。" />
+      <artifact path="backend/app/services/workspaces.py" kind="service" symbol="WorkspaceService" lines="1-200" reason="展示 Service 层的事务封装、审计记录与目录创建逻辑，可复用其模式实现 DataHubService。" />
+      <artifact path="backend/app/services/permissions.py" kind="service" symbol="PermissionService.require_operation" lines="15-90" reason="上传与版本接口必须校验工作空间 data_import 权限并记录审计日志，需复用该服务。" />
+      <artifact path="backend/app/repositories/audit.py" kind="repository" symbol="AuditLogRepository.record" lines="1-60" reason="所有导入操作与失败告警需写入 audit_logs，借助现有仓储方法保持一致性。" />
+      <artifact path="backend/tests/test_workspaces.py" kind="test" symbol="test_create_workspace_and_project_generates_structure" lines="1-160" reason="该测试展示了使用 TestClient、临时存储与审计验证的端到端写法，可作为编写 datasets API 测试的模板。" />
+      <artifact path="frontend/src/lib/api.ts" kind="api-client" symbol="requestJson" lines="1-120" reason="数据工作台前端调用需要复用通用 fetch 封装与鉴权头部处理逻辑。" />
+      <artifact path="frontend/src/app/workspaces/WorkspacesPage.test.tsx" kind="test" symbol="describe('WorkspacesPage')" lines="1-160" reason="提供了使用 Vitest + Testing Library 进行 API 交互模拟与表单操作的样例，可套用于 Dataset 上传页面测试。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">
+        <package name="fastapi" version="^0.111.0" />
+        <package name="sqlmodel" version="^0.0.21" />
+        <package name="alembic" version="^1.13.2" />
+        <package name="psycopg2-binary" version="^2.9.9" />
+        <package name="redis" version="^5.0.7" />
+        <package name="passlib[argon2]" version="^1.7.4" />
+      </dependency>
+      <dependency ecosystem="node">
+        <package name="react" version="^18.3.1" />
+        <package name="@tanstack/react-query" version="^5.56.2" />
+        <package name="react-hook-form" version="^7.52.0" />
+        <package name="vitest" version="^1.6.0" />
+        <package name="@testing-library/react" version="^14.2.2" />
+      </dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <item>后端接口需复用 FastAPI + Service + Repository 分层并通过 `PermissionService.require_operation` 校验工作空间 data_import 权限，所有写操作都要记录 audit_logs。</item>
+    <item>文件与外部 URI 持久化路径必须遵循 `/var/lib/llmft/datasets/{workspace}/{dataset_id}/v{n}/` 结构，并使用 Celery 兼容执行器触发清洗任务，禁止引入 mock/stub。</item>
+    <item>前端采用 React + Tailwind + shadcn/ui 组合实现表单，遵循 UX Flow 中的步骤提示与响应式布局，同时沿用 TanStack Query 缓存策略。</item>
+    <item>错误处理需返回结构化 JSON（含 code/message），超出大小或格式不支持时使用 4xx 状态码并提供整改建议，符合现有 API 规范。</item>
+  </constraints>
+  <interfaces>
+    <interface name="POST /api/v1/datasets" kind="REST endpoint" signature="POST /api/v1/datasets" path="backend/app/api/datasets.py" />
+    <interface name="POST /api/v1/datasets/{id}/versions" kind="REST endpoint" signature="POST /api/v1/datasets/{dataset_id}/versions" path="backend/app/api/datasets.py" />
+    <interface name="dataHubApi.createDataset" kind="TypeScript function" signature="createDataset(payload: DatasetCreatePayload): Promise&lt;Dataset&gt;" path="frontend/src/lib/api.ts" />
+    <interface name="dataHubApi.createVersion" kind="TypeScript function" signature="createVersion(args: { datasetId: number; payload: VersionCreatePayload }): Promise&lt;DatasetVersion&gt;" path="frontend/src/lib/api.ts" />
+  </interfaces>
+  <tests>
+    <standards><![CDATA[
+后端使用 Pytest + FastAPI TestClient（见 backend/tests/）并结合临时存储根目录验证文件落盘与审计记录；前端使用 Vitest + React Testing Library + jsdom（见 frontend/src/app/__tests__/ 与 workspaces 测试）模拟用户上传与 API 交互，遵循 docs/Python编码规范与项目测试约定。
+    ]]></standards>
+    <locations><![CDATA[
+backend/tests/
+frontend/src/app/__tests__/
+frontend/src/app/workspaces/
+    ]]></locations>
+    <ideas><![CDATA[
+- AC1：编写后端测试验证大文件拒绝、对象存储 URL 成功写入以及 audit_logs 记录；
+- AC2：前端测试检查提交时是否发送完整元数据字段，并在成功后展示负责人与状态；
+- AC3：集成测试模拟创建 dataset 后调用 versions 接口，断言 Celery 入口被调用且 data_cleaning_jobs 状态更新。
+    ]]></ideas>
+  </tests>
+</story-context>

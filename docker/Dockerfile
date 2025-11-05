@@ -1,0 +1,52 @@
+# ---------- Frontend build stage ----------
+FROM node:20-bookworm AS frontend-build
+
+WORKDIR /app/frontend
+
+# Enable corepack to use pnpm without global install
+RUN corepack enable
+
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY frontend ./
+RUN pnpm build
+
+
+# ---------- Backend runtime stage ----------
+FROM python:3.11-slim AS backend
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PATH="/app/backend/venv/bin:$PATH"
+
+WORKDIR /app/backend
+
+RUN set -eux; \
+    apt-get update; \
+    if ! apt-get install -y --no-install-recommends build-essential libpq-dev curl; then \
+      echo "apt install failed, retrying in 5s..."; \
+      sleep 5; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends build-essential libpq-dev curl; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt ./requirements.txt
+COPY backend/requirements-dev.txt ./requirements-dev.txt
+RUN python -m venv /app/backend/venv \
+    && /app/backend/venv/bin/pip install --upgrade pip setuptools wheel \
+    && /app/backend/venv/bin/pip install -r requirements.txt
+
+COPY backend /app/backend
+
+# Default command executed by docker-compose. Can be overridden.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+
+# ---------- Frontend runtime stage ----------
+FROM nginx:1.27-alpine AS frontend
+
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=frontend-build /app/frontend/dist /usr/share/nginx/html

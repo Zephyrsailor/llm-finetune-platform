@@ -1,0 +1,79 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>4</epicId>
+    <storyId>4</storyId>
+    <title>反馈与复盘记录</title>
+    <status>Ready for Dev</status>
+    <generatedAt>2025-10-31T14:50:00Z</generatedAt>
+    <generator>BMAD Story Context (manual draft)</generator>
+    <sourceStoryPath>docs/stories/story-4.4.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>产品经理</asA>
+    <iWant>在评估报告中记录业务反馈与改进建议</iWant>
+    <soThat>后续迭代能够追踪决策依据并持续优化模型效果</soThat>
+    <tasks><![CDATA[
+- [ ] 后端：新增 EvaluationFeedback 模型/仓储/服务，支持评论、TODO、业务指标，并与 evaluation_jobs、training_runs 建立关联及权限审计。
+- [ ] 后端：实现知识库占位导出接口，将反馈同步至 `/knowledge/{workspace}/{project}/feedback/`，并在训练创建流程提供反馈引用 API。
+- [ ] 前端：在 EvaluationReportPage 增加反馈/TODO 面板、业务指标输入、知识库导出与筛选 UI；训练向导支持引用反馈并生成改进目标。
+- [ ] 文档与测试：编写 pytest/Vitest 覆盖反馈 CRUD、导出同步、训练引用流程，更新平台技术规格与 UX 文档。
+    ]]></tasks>
+  </story>
+
+  <acceptanceCriteria><![CDATA[
+1. 评估报告详情支持评论、标记 TODO、记录业务指标，并与报告内容关联展示。
+2. 反馈记录可导出到知识库占位目录，按项目/工作空间查询与下载，形成可追踪复盘沉淀。
+3. 新建训练任务时可引用历史反馈，将改进目标写入任务配置或必填说明，形成迭代闭环。
+  ]]></acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics.md" title="Epics" section="Story [4.4]" snippet="定义反馈与复盘记录的用户故事与三条验收标准（评论/TODO、知识库、训练引用）。" />
+      <doc path="docs/PRD.md" title="PRD" section="评估与监控中心 / 治理与协作" snippet="提出评估报告需要人工反馈入口、历史记录与协作能力，支撑业务决策复盘。" />
+      <doc path="docs/ux-specification.md" title="UX Specification" section="Information Architecture / Component Library" snippet="Evaluation 模块包含“反馈与备注”导航，评估报告卡片需支持评论与 TODO。" />
+      <doc path="docs/architecture.md" title="Architecture" section="Epic to Architecture Mapping" snippet="E4 对应 FeedbackService，需与 KnowledgeBaseService 协作，实现评论反馈与知识沉淀。" />
+      <doc path="docs/product-brief-llm-finetune-platform-2025-10-23.md" title="Product Brief" section="Strategic Initiatives" snippet="强调知识库建设、沉淀最佳实践，为反馈/复盘功能提供业务背景。" />
+      <doc path="docs/stories/story-3.5.md" title="Story 3.5" section="Dev Notes" snippet="已有元数据导出与知识库占位策略，可复用于反馈记录的导出与审计。" />
+    </docs>
+    <code>
+      <code path="backend/app/services/evaluation.py" kind="service" symbol="EvaluationService" lines="1-520" reason="扩展反馈 CRUD、知识库导出、训练引用所需的业务逻辑。" />
+      <code path="backend/app/api/evaluation.py" kind="api" symbol="evaluation_router" lines="1-260" reason="新增 /evaluations/feedback 路由与导出端点，校验权限与审计。" />
+      <code path="backend/app/services/training.py" kind="service" symbol="TrainingService" lines="1-360" reason="训练创建流程需读取反馈并写入任务配置。" />
+      <code path="frontend/src/app/evaluation/EvaluationReportPage.tsx" kind="component" symbol="EvaluationReportPage" lines="1-320" reason="添加反馈面板、业务指标输入、知识库导出与筛选 UI。" />
+      <code path="frontend/src/app/training/TrainingWizardPage.tsx" kind="component" symbol="TrainingWizardPage" lines="1-420" reason="支持在训练配置步骤引用历史反馈并提示改进目标。" />
+    </code>
+    <dependencies>
+      <dependency ecosystem="python">fastapi, sqlmodel, celery</dependency>
+      <dependency ecosystem="frontend">@tanstack/react-query, react, zustand</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints><![CDATA[
+- 评论/TODO 操作必须遵循 evaluation_view/evaluation_manage 权限，并记录审计事件（创建、修改、删除、导出）。
+- 知识库导出应提供结构化 JSON/Markdown，文件命名规范 `feedback-{job_id}-{timestamp}.json`，并遵循 artefact 清理策略。
+- 前端反馈面板需支持 Markdown、安全渲染与键盘导航，避免引入 XSS 风险；附件上传需限制类型与大小。
+- 训练引用流程需在 UI 层提示反馈来源与处理状态，防止遗留 TODO 被忽视。
+  ]]></constraints>
+
+  <interfaces>
+    <interface name="list_feedback" kind="REST" signature="GET /api/v1/evaluations/{job_id}/feedback?workspace_id=&amp;project_id=&amp;tag=" path="backend/app/api/evaluation.py" />
+    <interface name="create_feedback" kind="REST" signature="POST /api/v1/evaluations/{job_id}/feedback" path="backend/app/api/evaluation.py" />
+    <interface name="export_feedback" kind="REST" signature="POST /api/v1/evaluations/{job_id}/feedback:export" path="backend/app/api/evaluation.py" />
+    <interface name="list_feedback_summaries" kind="REST" signature="GET /api/v1/training/feedback-summaries?project_id=" path="backend/app/api/training.py" />
+  </interfaces>
+
+  <tests>
+    <standards><![CDATA[后端使用 pytest 覆盖反馈 CRUD、导出、权限控制与训练引用；前端使用 Vitest + Testing Library 验证反馈面板交互、过滤、导出提示以及训练向导引用流程。]]></standards>
+    <locations><![CDATA[
+- backend/tests/test_evaluation_feedback.py
+- backend/tests/test_training_feedback_reference.py
+- frontend/src/app/evaluation/__tests__/EvaluationFeedbackPanel.test.tsx
+- frontend/src/app/training/__tests__/TrainingWizardFeedback.test.tsx
+    ]]></locations>
+    <ideas><![CDATA[
+- 模拟多条反馈（评论、TODO、指标），验证列表过滤、状态切换、知识库导出文件内容及审计事件。
+- 测试训练任务创建 API 在引用反馈时生成建议与校验 TODO 是否处理。
+- 前端测试覆盖评论创建、Markdown 渲染、键盘操作、导出按钮成功/失败提示以及引用弹窗交互。]]></ideas>
+  </tests>
+</story-context>
