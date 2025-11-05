@@ -45,7 +45,7 @@ make down
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-启动完成后：
+首次启动会自动等待 PostgreSQL 与 Redis 就绪，并在后端容器中执行 `alembic upgrade head` 完成数据库建表。启动完成后：
 
 - 后端 API：<http://localhost:8000/api>
 - 前端界面（Nginx 托管）：<http://localhost:8080>

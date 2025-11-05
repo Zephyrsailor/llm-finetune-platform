@@ -20,7 +20,7 @@ transformers==4.57.1
 peft==0.17.1
 accelerate==1.1.0
 torch==2.4.1
-tokenizers==0.19.1
+tokenizers==0.22.1
 sentencepiece==0.1.99
 numpy==1.26.4
 scipy==1.11.4

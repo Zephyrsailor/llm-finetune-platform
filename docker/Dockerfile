@@ -14,7 +14,7 @@ RUN pnpm build
 
 
 # ---------- Backend runtime stage ----------
-FROM python:3.11-slim AS backend
+FROM python:3.11-slim-bookworm AS backend
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -24,13 +24,20 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app/backend
 
 RUN set -eux; \
+    export DEBIAN_FRONTEND=noninteractive; \
     apt-get update; \
-    if ! apt-get install -y --no-install-recommends build-essential libpq-dev curl; then \
-      echo "apt install failed, retrying in 5s..."; \
+    for attempt in 1 2 3; do \
+      if apt-get install -y --no-install-recommends build-essential libpq-dev curl; then \
+        break; \
+      fi; \
+      if [ "$attempt" = "3" ]; then \
+        echo "apt install failed after ${attempt} attempts" >&2; \
+        exit 1; \
+      fi; \
+      echo "apt install failed (attempt ${attempt}), retrying in 5s..." >&2; \
       sleep 5; \
       apt-get update; \
-      apt-get install -y --no-install-recommends build-essential libpq-dev curl; \
-    fi; \
+    done; \
     rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt ./requirements.txt
@@ -40,9 +47,11 @@ RUN python -m venv /app/backend/venv \
     && /app/backend/venv/bin/pip install -r requirements.txt
 
 COPY backend /app/backend
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Default command executed by docker-compose. Can be overridden.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/entrypoint.sh"]
 
 
 # ---------- Frontend runtime stage ----------
