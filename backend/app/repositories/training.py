@@ -597,57 +597,15 @@ class TrainingSnapshotRepository:
         self._session.refresh(snapshot)
         return snapshot
 
-    def list_recent_for_workspace(self, workspace_id: int, limit: int = 50) -> Sequence[TrainingAlert]:
+    def list_recent_for_workspace(self, workspace_id: int, limit: int = 50) -> Sequence[TrainingSnapshot]:
         statement = (
-            select(TrainingAlert)
-            .join(TrainingAlertRule)
-            .where(TrainingAlertRule.workspace_id == workspace_id)
-            .order_by(TrainingAlert.triggered_at.desc())
+            select(TrainingSnapshot)
+            .where(TrainingSnapshot.workspace_id == workspace_id)
+            .order_by(TrainingSnapshot.created_at.desc())
             .limit(limit)
         )
         return tuple(self._session.exec(statement).all())
 
-    def list_for_run(self, run_id: int) -> Sequence[TrainingAlert]:
-        statement = (
-            select(TrainingAlert)
-            .where(TrainingAlert.run_id == run_id)
-            .order_by(TrainingAlert.triggered_at.desc())
-        )
-        return tuple(self._session.exec(statement).all())
-
-    def get(self, alert_id: int) -> TrainingAlert | None:
-        return self._session.get(TrainingAlert, alert_id)
-
-    def get_latest_for_rule(self, rule_id: int, run_id: int) -> TrainingAlert | None:
-        statement = (
-            select(TrainingAlert)
-            .where(
-                TrainingAlert.rule_id == rule_id,
-                TrainingAlert.run_id == run_id,
-            )
-            .order_by(TrainingAlert.triggered_at.desc())
-        )
-        return self._session.exec(statement).first()
-
-    def update_status(
-        self,
-        alert: TrainingAlert,
-        *,
-        status: TrainingAlertStatus,
-        actor_id: int | None,
-        notes: str | None = None,
-    ) -> TrainingAlert:
-        now = datetime.utcnow()
-        alert.status = status
-        if status == TrainingAlertStatus.ACKNOWLEDGED:
-            alert.acknowledged_by = actor_id
-            alert.acknowledged_at = now
-        if status == TrainingAlertStatus.RESOLVED:
-            alert.resolved_by = actor_id
-            alert.resolved_at = now
-        if notes is not None:
-            alert.notes = notes
-        self._session.add(alert)
+    def delete(self, snapshot: TrainingSnapshot) -> None:
+        self._session.delete(snapshot)
         self._session.flush()
-        self._session.refresh(alert)
-        return alert
